@@ -23,6 +23,8 @@
 %% [2] http://erlang.org/doc/man/leex.html
 %% [3] http://www.w3.org/TR/css3-syntax
 
+%% END OF HEADER TO COPY.
+
 %% ================================================================================
 
 Definitions.

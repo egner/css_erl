@@ -21,6 +21,8 @@
 %% [2] http://erlang.org/doc/man/yecc.html
 %% [3] http://www.w3.org/TR/css3-syntax
 
+%% END OF HEADER TO COPY.
+
 Nonterminals
    at at_sym_s_star attrib attrib1 attrib1_s_star attrib2 attrib2_s_star
    cbrace_s_star cd cd_s_star cd_s_star_plus charset_def class combinator
