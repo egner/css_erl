@@ -20,7 +20,7 @@
         ]).
 
 %% Extract all CSS identifiers (class, id) from the files specified
-%% by InfileWildcards (a list of arguments to zfile:wildcard/2),
+%% by InfileWildcards (a list of arguments to css_util:wildcard/2),
 %% using IncludeDirWildcards for resolving -include[_lib].
 %% Opts contains options, currently only {quiet,true|false}.
 %%    The function returns {ok,[{ident,Ident,[Location,..]},..]},
@@ -38,19 +38,20 @@ read_ident_literals(InfileWildcards, IncludeDirWildcards, Opts) ->
                     true -> io:fwrite("Scanning: ~p~n", [Infile]);
                     false -> ok
                 end,
-                case utils:abspath_extension(Infile) of
-                    {ok,Ext} when Ext =:= <<".erl">>; Ext =:= <<".hrl">> ->
-                        case read_ident_literals_erl(Infile, IncludeDirs) of
+                InfileStr = css_util:to_codepoints(Infile),
+                case filename:extension(InfileStr) of
+                    Ext when Ext =:= ".erl"; Ext =:= ".hrl" ->
+                        case read_ident_literals_erl(InfileStr, IncludeDirs) of
                             {ok,Idents} -> {ok,[Idents|Acc]};
                             Error={error,_,_} -> Error
                         end;
-                    {ok,Ext} when Ext =:= <<".html">>; Ext =:= <<".yaws">> ->
-                        case read_ident_literals_yaws(Infile) of
+                    Ext when Ext =:= ".html"; Ext =:= ".yaws" ->
+                        case read_ident_literals_yaws(InfileStr) of
                             {ok,Idents} -> {ok,[Idents|Acc]};
                             Error={error,_,_} -> Error
                         end;
-                    {ok,<<".css">>} ->
-                        case read_ident_literals_css(Infile) of
+                    ".css" ->
+                        case read_ident_literals_css(InfileStr) of
                             {ok,Idents} -> {ok,[Idents|Acc]};
                             Error={error,_,_} -> Error
                         end;
@@ -68,29 +69,31 @@ read_ident_literals(InfileWildcards, IncludeDirWildcards, Opts) ->
     {ok,MergeIdents}.
 
 wildcard(Wildcard) ->
-    {ok,Files} = zfile:wildcard(Wildcard, "."),
+    {ok,Files} = css_util:wildcard(Wildcard, "."),
     Files.
 
 save_idents(Outfile, Idents) ->
     Data =
         lists:map(
           fun ({ident,Ident,Locations}) ->
-                  [uni:fmt("~ts~n", [Ident]),
+                  [fmt("~ts~n", [Ident]),
                    lists:map(
                      fun ({Filename,Lines}) ->
-                             uni:fmt("    ~ts:~ts~n",
-                                     [filename:basename(Filename),
-                                      lines_to_utf8(Lines)])
+                             fmt("    ~ts:~ts~n", [filename:basename(Filename),
+                                                   lines_to_utf8(Lines)])
                      end,
                      lists:sort([{filename:basename(F),Ls}
                                  || {F,Ls} <- Locations])),
-                   uni:fmt("~n", [])]
+                   fmt("~n", [])]
           end,
           Idents),
-    zfile:write_file(Outfile, Data).
+    css_util:write_file_utf8(Outfile, Data).
 
 lines_to_utf8(Lines) ->
-    uni:join([uni:fmt("~b", [L]) || L <- Lines], ",").
+    css_util:join([fmt("~b", [L]) || L <- Lines], ",").
+
+fmt(Format, Args) ->
+    io_lib:format(Format, Args).
 
 merge_idents(Idents) ->
     lists:reverse(
@@ -127,10 +130,11 @@ merge_locations(Locations) ->
 
 %% Recognize CSS identifiers. Returns [binary()], where each entry
 %% matches the Ident syntax from css_idents_re().
-css_idents(Str) ->
-    Utf8 = uni:lowercase(Str),
+css_idents(Utf8Iolist) ->
+    Utf8 = css_util:to_utf8(Utf8Iolist),
+    String = string:to_lower(css_util:to_codepoints(Utf8)),
     RunOpts = [{capture,first,binary},global],
-    case re:run(uni:strip(Utf8), css_ident_re(), RunOpts) of
+    case re:run(css_util:strip2(String), css_ident_re(), RunOpts) of
         {match,Idents} -> lists:map(fun list_to_binary/1, Idents);
         nomatch -> []
     end.
@@ -261,8 +265,8 @@ split_by_dot([], Form, Forms) ->
 %% of the form {ident,Ident,[{File,[Line,..]},..]}, where Ident
 %% is a binary matching css_idents_re().
 read_ident_literals_erl(Infile, IncludeDirs) ->
-    case epp:parse_file(uni:to_codepoints(Infile),
-                        [uni:to_codepoints(D) || D <- IncludeDirs],
+    case epp:parse_file(css_util:to_codepoints(Infile),
+                        [css_util:to_codepoints(D) || D <- IncludeDirs],
                         _PredefMacros=[]) of
         {ok,Forms} ->
             {ok,merge_idents(erl_source(Infile, Forms))};

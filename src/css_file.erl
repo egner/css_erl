@@ -22,8 +22,7 @@
 %% Transcode CSS from Infile to some Outfile.
 %% Returns {ok,Outfile}|{error,_,_}.
 rewrite_file(Infile) ->
-    Outfile = uni:fmt("~ts-rewrite.css",
-                      [uni:to_utf8(filename:rootname(Infile))]),
+    Outfile = fmt("~ts-rewrite.css", [filename:rootname(Infile)]),
     case rewrite_file(Infile, Outfile) of
         ok -> {ok,Outfile};
         Error={error,_,_} -> Error
@@ -43,7 +42,7 @@ rewrite_file(Infile, Outfile) ->
 check_readback(Infile, Css, Outfile) -> % ok|{error,_,_}
     case read_file(Outfile) of
         {ok,CssReadback} ->
-            case utils:check_diff(Css, CssReadback, []) of
+            case css_util:check_diff(Css, CssReadback) of
                 ok -> ok;
                 {error,Reason,Details} ->
                     {error,css_readback_failed,
@@ -82,9 +81,9 @@ read_file(Filename) ->
 %% This function is mainly used for read_file/1, but is occasionally
 %% useful for debugging the grammar.
 scan_file(Filename) ->
-    case zfile:read_file(Filename) of
+    case css_util:read_file(Filename) of
         {ok,Bytes} ->
-            Input = uni:to_codepoints(Bytes),
+            Input = css_util:to_codepoints(Bytes),
             case css_leex:string(Input) of
                 {ok,Tokens,_EndLine} ->
                     {ok,Tokens};
@@ -103,35 +102,31 @@ scan_file(Filename) ->
 
 %% Write a CSS structure into Outfile. Returns ok|{error,_,_}.
 write_file(Outfile, Css) ->
-    zfile:write_file(Outfile, wr_entries(Css)).
+    css_util:write_file_utf8(Outfile, wr_entries(Css)).
 
 wr_entries(Entries) when is_list(Entries) ->
     join_map(fun wr_entry/1, Entries, "\n\n").
 
 wr_entry({'@charset',Charset}) ->
-    uni:fmt("@charset ~ts;", [wr_string(Charset)]);
+    fmt("@charset ~ts;", [wr_string(Charset)]);
 wr_entry({'@import',StringOrUri,[]}) ->
-    uni:fmt("@import ~ts;", [wr_string_or_uri(StringOrUri)]);
+    fmt("@import ~ts;", [wr_string_or_uri(StringOrUri)]);
 wr_entry({'@import',StringOrUri,MediaList=[_|_]}) ->
-    uni:fmt("@import ~ts ~ts;",
-            [wr_string_or_uri(StringOrUri),
-             wr_media_list(MediaList)]);
+    fmt("@import ~ts ~ts;", [wr_string_or_uri(StringOrUri), wr_media_list(MediaList)]);
 wr_entry({'@media',MediaList,RulesetList}) ->
-    uni:fmt("@media ~ts {~n~ts~n}", [wr_media_list(MediaList),
-                                     wr_ruleset_list(RulesetList)]);
+    fmt("@media ~ts {~n~ts~n}", [wr_media_list(MediaList), wr_ruleset_list(RulesetList)]);
 wr_entry({'@',Keyword,Ruleset}) ->
-    uni:fmt("@~ts ~ts", [wr_ident(Keyword),
-                         wr_ruleset(Ruleset)]);
+    fmt("@~ts ~ts", [wr_ident(Keyword), wr_ruleset(Ruleset)]);
 wr_entry({'@',Keyword,{function,Name,Expr},RulesetList}) ->
-    uni:fmt("@~ts ~ts ~ts", [wr_ident(Keyword),
-                             wr_function(Name, Expr),
-                             wr_ruleset_list(RulesetList)]);
+    fmt("@~ts ~ts ~ts", [wr_ident(Keyword),
+                         wr_function(Name, Expr),
+                         wr_ruleset_list(RulesetList)]);
 wr_entry({'@',Keyword,{function,Name,Expr},{'/*validator:*/',Pragma},RulesetList}) ->
-    uni:fmt("@~ts ~ts ~ts~n{~n~ts~n}", % FIXME: pretty-print
-            [wr_ident(Keyword),
-             wr_function(Name, Expr),
-             wr_validator(Pragma),
-             wr_ruleset_list(RulesetList)]);
+    fmt("@~ts ~ts ~ts~n{~n~ts~n}", % NOTYET: pretty-print
+        [wr_ident(Keyword),
+         wr_function(Name, Expr),
+         wr_validator(Pragma),
+         wr_ruleset_list(RulesetList)]);
 wr_entry(Ruleset={ruleset,_,_}) ->
     wr_ruleset(Ruleset).
 
@@ -142,10 +137,10 @@ wr_ruleset_list(RulesetList) ->
     join_map(fun wr_ruleset/1, RulesetList, "\n").
 
 wr_ruleset({ruleset,SelectorList,[]}) ->
-    uni:fmt("~ts { }", [wr_selector_list(SelectorList)]);
+    fmt("~ts { }", [wr_selector_list(SelectorList)]);
 wr_ruleset({ruleset,SelectorList,DeclarationList=[_|_]}) ->
-    uni:fmt("~ts {\n    ~ts\n}", [wr_selector_list(SelectorList),
-                                  wr_declaration_list(DeclarationList)]).
+    fmt("~ts {\n    ~ts\n}", [wr_selector_list(SelectorList),
+                              wr_declaration_list(DeclarationList)]).
 
 wr_selector_list(SelectorList) ->
     case lists:reverse(SelectorList) of
@@ -157,17 +152,15 @@ wr_selector_list(SelectorList) ->
     end.
 
 wr_selector({selector,[{' ',SS}|SSs]}) ->
-    uni:join([wr_simple_selector(SS)] ++
-                 lists:map(fun ({' ',SS1}) ->
-                                   uni:fmt(" ~ts",
-                                           [wr_simple_selector(SS1)]);
-                               ({Combinator,SS1}) ->
-                                   uni:fmt("~ts ~ts",
-                                           [wr_atom(Combinator),
-                                            wr_simple_selector(SS1)])
-                           end,
-                           SSs),
-             " ").
+    join([wr_simple_selector(SS)] ++
+             lists:map(fun ({' ',SS1}) ->
+                               fmt(" ~ts", [wr_simple_selector(SS1)]);
+                           ({Combinator,SS1}) ->
+                               fmt("~ts ~ts", [wr_atom(Combinator),
+                                               wr_simple_selector(SS1)])
+                       end,
+                       SSs),
+         " ").
 
 wr_simple_selector({'*',SS1s}) ->
     case wr_simple_selector1s(SS1s) of
@@ -175,35 +168,31 @@ wr_simple_selector({'*',SS1s}) ->
         Other -> Other
     end;
 wr_simple_selector({Element,SS1s}) ->
-    uni:join([wr_ident(Element), wr_simple_selector1s(SS1s)], "").
+    join([wr_ident(Element), wr_simple_selector1s(SS1s)], "").
 
 wr_simple_selector1s(SimpleSelector1s) ->
     join_map(fun wr_simple_selector1/1, SimpleSelector1s, "").
 
 wr_simple_selector1({class,Ident}) ->
-    uni:fmt(".~ts", [wr_ident(Ident)]);
+    fmt(".~ts", [wr_ident(Ident)]);
 wr_simple_selector1({id,Ident}) ->
-    uni:fmt("#~ts", [wr_ident(Ident)]);
+    fmt("#~ts", [wr_ident(Ident)]);
 wr_simple_selector1({attr,Ident}) ->
-    uni:fmt("[~ts]", [wr_ident(Ident)]);
+    fmt("[~ts]", [wr_ident(Ident)]);
 wr_simple_selector1({attr,Ident,Rel,{string,String}}) ->
-    uni:fmt("[~ts~ts~ts]", [wr_ident(Ident),
-                            wr_atom(Rel),
-                            wr_string(String)]);
+    fmt("[~ts~ts~ts]", [wr_ident(Ident), wr_atom(Rel), wr_string(String)]);
 wr_simple_selector1({attr,Ident,Rel,Rhs}) ->
-    uni:fmt("[~ts~ts~ts]", [wr_ident(Ident),
-                            wr_atom(Rel),
-                            wr_ident(Rhs)]);
+    fmt("[~ts~ts~ts]", [wr_ident(Ident), wr_atom(Rel), wr_ident(Rhs)]);
 wr_simple_selector1({':',{ident,Ident}}) ->
-    uni:fmt(":~ts", [wr_ident(Ident)]);
+    fmt(":~ts", [wr_ident(Ident)]);
 wr_simple_selector1({':',{function,Name,Expr}}) ->
-    uni:fmt(":~ts", [wr_function(Name, Expr)]).
+    fmt(":~ts", [wr_function(Name, Expr)]).
 
 wr_declaration_list(DeclarationList) ->
-    uni:join(wr_declaration_list1(DeclarationList), "\n    ").
+    join(wr_declaration_list1(DeclarationList), "\n    ").
 
 wr_declaration_list1([D,{'/*validator:*/',Pragma}|Ds]) ->
-    S = uni:fmt("~ts~ts", [wr_declaration(D), wr_validator(Pragma)]),
+    S = fmt("~ts~ts", [wr_declaration(D), wr_validator(Pragma)]),
     [S|wr_declaration_list1(Ds)];
 wr_declaration_list1([D|Ds]) ->
     [wr_declaration(D)|wr_declaration_list1(Ds)];
@@ -211,25 +200,21 @@ wr_declaration_list1([]) ->
     [].
 
 wr_declaration({':',Property,Expr}) ->
-    uni:fmt("~ts: ~ts;",
-            [wr_ident(Property),
-             wr_expr(Expr)]);
+    fmt("~ts: ~ts;", [wr_ident(Property), wr_expr(Expr)]);
 wr_declaration({':!important',Property,Expr}) ->
-    uni:fmt("~ts: ~ts !important;",
-            [wr_ident(Property),
-             wr_expr(Expr)]);
+    fmt("~ts: ~ts !important;", [wr_ident(Property), wr_expr(Expr)]);
 wr_declaration({'{}',Term={Num,Unit},DeclarationList})
   when is_number(Num), is_atom(Unit) ->
-    uni:fmt("~ts { ~ts }",
-            [wr_term(Term),
-             join_map(fun wr_declaration/1, DeclarationList, " ")]);
+    fmt("~ts { ~ts }", [wr_term(Term),
+                        join_map(fun wr_declaration/1,
+                                 DeclarationList, " ")]);
 wr_declaration({'{}',Property,DeclarationList}) ->
-    uni:fmt("~ts { ~ts }",
-            [wr_ident(Property),
-             join_map(fun wr_declaration/1, DeclarationList, " ")]).
+    fmt("~ts { ~ts }", [wr_ident(Property),
+                        join_map(fun wr_declaration/1,
+                                 DeclarationList, " ")]).
 
 wr_validator(Pragma) ->
-    uni:fmt(" /* validator: ~ts */", [Pragma]).
+    fmt(" /* validator: ~ts */", [Pragma]).
 
 wr_expr({Op,Args}) when Op =:= ','; Op =:= ' '; Op =:= '/' ->
     join_map(fun wr_expr/1, Args, wr_atom(Op));
@@ -237,10 +222,9 @@ wr_expr(Term) ->
     wr_term(Term).
 
 wr_term({Num,Unit}) when is_number(Num), is_atom(Unit) ->
-    uni:fmt("~ts~ts", [number:to_utf8_exact(Num),
-                       wr_atom(Unit)]);
+    fmt("~ts~ts", [number_to_string(Num), wr_atom(Unit)]);
 wr_term(Num) when is_number(Num) ->
-    number:to_utf8_exact(Num);
+    number_to_string(Num);
 wr_term({ident,Ident}) ->
     wr_ident(Ident);
 wr_term({string,String}) ->
@@ -248,14 +232,14 @@ wr_term({string,String}) ->
 wr_term({uri,Uri}) ->
     wr_uri(Uri);
 wr_term({hexcolor,Hexcolor}) ->
-    uni:fmt("#~ts", [wr_escaped(Hexcolor)]);
+    fmt("#~ts", [wr_escaped(Hexcolor)]);
 wr_term({function,Name,Args}) ->
     wr_function(Name, Args).
 
 wr_function(Name, []) ->
-    uni:fmt("~ts()", [wr_ident(Name)]);
+    fmt("~ts()", [wr_ident(Name)]);
 wr_function(Name, Expr) ->
-    uni:fmt("~ts(~ts)", [wr_ident(Name), wr_expr(Expr)]).
+    fmt("~ts(~ts)", [wr_ident(Name), wr_expr(Expr)]).
 
 wr_atom(Atom) ->
     atom_to_binary(Atom, utf8).
@@ -266,18 +250,18 @@ wr_string_or_uri({uri,Uri}) ->
     wr_uri(Uri).
 
 wr_uri({string,String}) ->
-    uni:fmt("url(~ts)", [wr_string(String)]);
+    fmt("url(~ts)", [wr_string(String)]);
 wr_uri({url,Url}) ->
-    uni:fmt("url(~ts)", [wr_escaped(Url)]).
+    fmt("url(~ts)", [wr_escaped(Url)]).
 
 wr_string(String) ->
-    uni:fmt("\"~ts\"", [wr_escaped(String)]).
+    fmt("\"~ts\"", [wr_escaped(String)]).
 
 wr_ident(Ident) ->
     wr_escaped(Ident).
 
 wr_escaped(Str) ->
-    wr_esc(uni:to_codepoints(Str), <<>>).
+    wr_esc(css_util:to_codepoints(Str), <<>>).
 
 wr_esc([ 9|T], Acc) ->  wr_esc(T, <<Acc/binary,"\\t">>);
 wr_esc([10|T], Acc) ->  wr_esc(T, <<Acc/binary,"\\n">>);
@@ -294,14 +278,40 @@ wr_esc([], Acc) ->
     Acc.
 
 wr_hex(N, Tail) ->
-    NStr = uni:lowercase(integer_to_binary(N, 16)),
+    NStr = string:to_lower(integer_to_list(N, 16)),
     case re:run(Tail, "^[0-9A-Fa-f]", [{capture,none}]) of
-        match -> <<"\\",NStr/binary," ">>;
-        nomatch -> <<"\\",NStr/binary>>
+        match   -> ["\\", NStr, " "];
+        nomatch -> ["\\", NStr]
     end.
 
 join_map(Fun, List, Sep) ->
-    uni:join(lists:map(Fun, List), Sep).
+    join(lists:map(Fun, List), Sep).
+
+%% The paranoid way to convert a number() into a string() such that
+%% its bit pattern can be reconstructed exactly upon reading.
+number_to_string(N) when is_integer(N) ->
+    integer_to_binary(N);
+number_to_string(X) when is_float(X) ->
+    S1 = io_lib:format("~w", [X]), % short, if it works
+    X1 = list_to_float(S1),
+    case X1 =:= X of
+        true  -> S1;
+        false ->
+            S2 = float_to_list(X),
+            X2 = list_to_float(S2),
+            case X2 =:= X of
+                true  -> S2;
+                false -> exit({unprintable_float,X})
+            end
+    end.
+
+%% Abbreviations.
+
+fmt(Format, Args) ->
+    io_lib:format(Format, Args).
+
+join(Args, Separator) ->
+    css_util:join(Args, Separator).
 
 %% ------------------------------------------------------------------------------
 %%

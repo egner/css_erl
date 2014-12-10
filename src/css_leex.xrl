@@ -161,11 +161,37 @@ url\({Wx}{Url}{Wx}\)      : {token,{'URI',TokenLine,{url,url_to_unicode2(TokenCh
 {Impossible4} : {end_token,{'IMPOSSIBLE4',TokenLine,TokenChars},[]}.
 {Impossible5} : {error,"IMPOSSIBLE5"}.
 
+%% ------------------------------------------------------------------------------
+%%
+%% The MIT License (MIT)
+%%
+%% Copyright (c) 2014, Sebastian Egner.
+%%
+%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%% of this software and associated documentation files (the "Software"), to deal
+%% in the Software without restriction, including without limitation the rights
+%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+%% copies of the Software, and to permit persons to whom the Software is
+%% furnished to do so, subject to the following conditions:
+%%
+%% The above copyright notice and this permission notice shall be included in
+%% all copies or substantial portions of the Software.
+%%
+%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+%% THE SOFTWARE.
+%%
+%% (Source: http://opensource.org/licenses/MIT)
+
 %% ================================================================================
 
 Erlang code.
 
--compile(no_native). % cf. NOC-Dev:#722
+-compile(no_native). % HiPE can't handle the size of the generated scanner.
 
 -export([value/1,
          ident_to_atom/1,
@@ -180,10 +206,17 @@ Erlang code.
 %% We work with strings as lists of Unicode codepoints.
 
 to_num(TokenLine, TokenChars) ->
-    {ok,Number,UnitUtf8} = number:from_str_css(TokenChars),
-    case UnitUtf8 of
-        <<"">> -> Number;
-        _      -> {Number,codepoints_to_atom(TokenLine, uni:to_codepoints(UnitUtf8))}
+    NumRe = "^([0-9]*\\.[0-9]+|[0-9]+)(.*)$",
+    Opts = [{capture,all_but_first,list}],
+    {{match,NumStr,Unit},_} = re:run(TokenChars, NumRe, Opts),
+    Num = case string:chr(NumStr, $.) of
+              0 -> list_to_integer(NumStr);
+              1 -> list_to_float("0" ++ NumStr);
+              _ -> list_to_float(NumStr)
+          end,
+    case Unit of
+        "" -> Num;
+        _ -> {Num,codepoints_to_atom(TokenLine, Unit)}
     end.
 
 codepoints_to_atom(Line, Codepoints) ->
@@ -312,29 +345,3 @@ remove_comments([_Item|Items], Acc, N) when N > 0 ->
     remove_comments(Items, Acc, N);
 remove_comments([], Acc, _) ->
     lists:reverse(Acc).
-
-%% ------------------------------------------------------------------------------
-%%
-%% The MIT License (MIT)
-%%
-%% Copyright (c) 2014, Sebastian Egner.
-%%
-%% Permission is hereby granted, free of charge, to any person obtaining a copy
-%% of this software and associated documentation files (the "Software"), to deal
-%% in the Software without restriction, including without limitation the rights
-%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-%% copies of the Software, and to permit persons to whom the Software is
-%% furnished to do so, subject to the following conditions:
-%%
-%% The above copyright notice and this permission notice shall be included in
-%% all copies or substantial portions of the Software.
-%%
-%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-%% THE SOFTWARE.
-%%
-%% (Source: http://opensource.org/licenses/MIT)

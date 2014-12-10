@@ -12,7 +12,7 @@
 %%   which cannot be expressed in the grammar of yecc directly.
 %% - In [1] G.1 the non-terminal media_list uses the terminal COMMA.
 %%   This is simply an error in [1], we corrected it to ','.
-%% - There are two shift/reduce conflicts, resolved for shift.
+%% - There are several shift/reduce conflicts, resolved for shift.
 %% - We implement a few extensions for CSS 3, marked by (1).
 %% - We structure 'expr' by precedence as ',' > ' ' > '/'.
 %%
