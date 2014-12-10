@@ -12,12 +12,15 @@ clean:
 
 # --
 
-.css_erl: ebin/css_yecc.beam ebin/css_leex.beam ebin/css_file.beam ebin/css_idents.beam
+.css_erl: ebin/css_leex.beam ebin/css_yecc.beam ebin/css_util.beam ebin/css_file.beam ebin/css_idents.beam
 
 ebin/css_idents.beam: src/css_idents.erl
 	erlc -o ebin $^
 
 ebin/css_file.beam: src/css_file.erl
+	erlc -o ebin $^
+
+ebin/css_util.beam: src/css_util.erl
 	erlc -o ebin $^
 
 ebin/css_yecc.beam: ebin/css_yecc.erl

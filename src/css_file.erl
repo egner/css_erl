@@ -22,7 +22,8 @@
 %% Transcode CSS from Infile to some Outfile.
 %% Returns {ok,Outfile}|{error,_,_}.
 rewrite_file(Infile) ->
-    Outfile = fmt("~ts-rewrite.css", [filename:rootname(Infile)]),
+    Outfile = css_util:to_codepoints(fmt("~ts-rewrite.css",
+                                         [filename:rootname(Infile)])),
     case rewrite_file(Infile, Outfile) of
         ok -> {ok,Outfile};
         Error={error,_,_} -> Error

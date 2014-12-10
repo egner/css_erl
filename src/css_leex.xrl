@@ -208,7 +208,7 @@ Erlang code.
 to_num(TokenLine, TokenChars) ->
     NumRe = "^([0-9]*\\.[0-9]+|[0-9]+)(.*)$",
     Opts = [{capture,all_but_first,list}],
-    {{match,NumStr,Unit},_} = re:run(TokenChars, NumRe, Opts),
+    {{match,[NumStr,Unit]},_} = {re:run(TokenChars, NumRe, Opts),TokenChars},
     Num = case string:chr(NumStr, $.) of
               0 -> list_to_integer(NumStr);
               1 -> list_to_float("0" ++ NumStr);

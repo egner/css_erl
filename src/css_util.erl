@@ -11,9 +11,16 @@
 
 -module(css_util).
 
--compile(export_all). % NOTYET
+-export([wildcard/2,
+         read_file/1,
+         write_file_utf8/2,
+         to_utf8/1,
+         join/2,
+         to_codepoints/1,
+         strip2/1,
+         check_diff/2]).
 
-%% -- zfile --
+%% -- file --
 
 %% Find files by pattern in a given path.
 wildcard(Wildcard, Path) ->
@@ -33,7 +40,7 @@ write_file_utf8(Outfile, Utf8Iolist) ->
         {error,Reason} -> {error,Reason,[{outfile,Outfile}]}
     end.
 
-%% -- uni --
+%% -- UTF-8 vs. Unicode codepoints vs. Utf8Iolist --
 
 %% Flatten into binary() representing UTF-8.
 to_utf8(Utf8Iolist) ->
@@ -47,6 +54,8 @@ to_utf8([H|T], Acc) when is_binary(H) ->
     to_utf8(T, <<Acc/binary,H/binary>>);
 to_utf8([H|T], Acc) when is_list(H) ->
     to_utf8(T, to_utf8(H, Acc));
+to_utf8([H|T], Acc) when is_atom(H) ->
+    to_utf8(T, to_utf8(atom_to_list(H), Acc)); % Latin-1
 to_utf8([], Acc) ->
     Acc;
 to_utf8(Any, Acc) when not is_list(Any) ->
