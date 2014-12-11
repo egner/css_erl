@@ -166,6 +166,7 @@ url\({Wx}{Url}{Wx}\)      : {token,{'URI',TokenLine,{url,url_to_unicode2(TokenCh
 %% The MIT License (MIT)
 %%
 %% Copyright (c) 2014, Sebastian Egner.
+%% Copyright (c) 2013-2014, Entelios AG, an EnerNOC company.
 %%
 %% Permission is hereby granted, free of charge, to any person obtaining a copy
 %% of this software and associated documentation files (the "Software"), to deal

@@ -34,4 +34,5 @@ all CSS identifiers as literals.
 This code is reproduced here with permission and has originally
 been developed for Entelios AG, an EnerNOC company, 2013-2014.
 
+Refer to the individual files for the actual license agreement.
 MIT License, Sebastian Egner, 2014.
