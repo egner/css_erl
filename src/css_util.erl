@@ -11,8 +11,7 @@
 
 -module(css_util).
 
--export([wildcard/2,
-         read_file/1,
+-export([read_file/1,
          write_file_utf8/2,
          to_utf8/1,
          join/2,
@@ -21,10 +20,6 @@
          check_diff/2]).
 
 %% -- file --
-
-%% Find files by pattern in a given path.
-wildcard(Wildcard, Path) ->
-    filelib:wildcard(filename:join(filename:absname(Path), Wildcard)).
 
 %% Read a file, returning {ok,binary()}|{error,Reason,[Detail]}.
 read_file(Infile) ->

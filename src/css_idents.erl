@@ -24,10 +24,11 @@
 %% using IncludeDirWildcards for resolving -include[_lib].
 %% Opts contains options, currently only {quiet,true|false}.
 %%    The function returns {ok,[{ident,Ident,[Location,..]},..]},
-%% or {error,_,_}. Location is {File,[Line|-1,...]}.
+%% or {error,_,_}. Location is {File,[Line|-1,...]}. Ident is a
+%% binary() containing UTF-8.
 read_ident_literals(InfileWildcards, IncludeDirWildcards, Opts) ->
-    IncludeDirs = lists:usort([F || W <- IncludeDirWildcards, F <- wildcard(W)]),
-    Infiles = lists:usort([F || W <- InfileWildcards, F <- wildcard(W)]),
+    IncludeDirs = list_files(IncludeDirWildcards),
+    Infiles = list_files(InfileWildcards),
     Quiet = proplists:get_bool(quiet, Opts),
     {ok,Idents} =
       lists:foldl(
@@ -68,9 +69,9 @@ read_ident_literals(InfileWildcards, IncludeDirWildcards, Opts) ->
     end,
     {ok,MergeIdents}.
 
-wildcard(Wildcard) ->
-    {ok,Files} = css_util:wildcard(Wildcard, "."),
-    Files.
+list_files(DirWildcards) ->
+    lists:usort([F || W <- DirWildcards,
+                      F <- filelib:wildcard(W)]).
 
 save_idents(Outfile, Idents) ->
     Data =
