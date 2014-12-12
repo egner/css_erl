@@ -5,35 +5,37 @@
 # Make or run tests for css_erl library.
 # SE, created 10-Dec-2014, GNU Make 3.81 on MacOSX 10.9.5.
 
-all: .css_erl
+.SUFFIXES:
+
+.PHONY: all
+
+all: css_erl
+
+# -- library 'css_erl' --
+
+CSS_ERL_MODULES = css_leex css_yecc css_util css_file css_idents
+
+.PHONY: css_erl
+
+css_erl: $(addprefix ebin/, $(addsuffix .beam, $(CSS_ERL_MODULES)))
+
+ebin/%.beam : src/%.erl
+	erlc -o ebin $^
+
+ebin/css_yecc.beam: src/css_yecc.yrl
+	erlc -o ebin $^
+	erlc -o ebin ebin/css_yecc.erl
+
+ebin/css_leex.beam: src/css_leex.xrl
+	erlc -o ebin $^
+	erlc -o ebin ebin/css_leex.erl
+
+# -- cleaning up --
+
+.PHONY: clean
 
 clean:
-	rm ebin/*.beam ebin/*.erl
-
-# --
-
-.css_erl: ebin/css_leex.beam ebin/css_yecc.beam ebin/css_util.beam ebin/css_file.beam ebin/css_idents.beam
-
-ebin/css_idents.beam: src/css_idents.erl
-	erlc -o ebin $^
-
-ebin/css_file.beam: src/css_file.erl
-	erlc -o ebin $^
-
-ebin/css_util.beam: src/css_util.erl
-	erlc -o ebin $^
-
-ebin/css_yecc.beam: ebin/css_yecc.erl
-	erlc -o ebin $^
-
-ebin/css_leex.beam: ebin/css_leex.erl
-	erlc -o ebin $^
-
-ebin/css_yecc.erl: src/css_yecc.yrl
-	erlc -o ebin $^
-
-ebin/css_leex.erl: src/css_leex.xrl
-	erlc -o ebin $^
+	rm -f ebin/*.beam ebin/*.erl
 
 # -----------------------------------------------------------------------------
 #
