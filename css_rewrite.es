@@ -2,10 +2,10 @@
 %%! +fnu +A 64 -noshell -sasl errlog_type error -pa ebin
 %% -*- mode: erlang; coding: us-ascii; indent-tabs-mode: nil -*-
 %% vim: set filetype=erlang fileencoding=utf-8 expandtab sw=4 sts=4:
+%% Refer to license at the end of this file.
 %%
 %% Read a CSS file and print it again.
 %% SE, created 12-Dec-2014, in Erlang/OTP 17.
-%% Refer to license at the end of this file.
 
 css_rewrite(Infile, Outfile) ->
     {ok,Css} = css_file:read_file(Infile),

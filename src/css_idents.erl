@@ -15,8 +15,9 @@
          read_ident_literals_yaws/1,
          read_ident_literals_css/1,
          %% NOTYET: read_ident_literals_js/1
-         save_idents/2,
-         css_idents/1
+         print_idents/1,
+         css_idents/1,
+         list_files/1
         ]).
 
 %% Extract all CSS identifiers (class, id) from the files specified
@@ -73,25 +74,29 @@ list_files(DirWildcards) ->
     lists:usort([F || W <- DirWildcards,
                       F <- filelib:wildcard(W)]).
 
-save_idents(Outfile, Idents) ->
-    Data =
+print_idents(Idents) ->
+    Utf8Iolist =
         lists:map(
           fun ({ident,Ident,Locations}) ->
                   [fmt("~ts~n", [Ident]),
                    lists:map(
-                     fun ({Filename,Lines}) ->
-                             fmt("    ~ts:~ts~n", [filename:basename(Filename),
-                                                   lines_to_utf8(Lines)])
-                     end,
+                     fun location_to_utf8/1,
                      lists:sort([{filename:basename(F),Ls}
                                  || {F,Ls} <- Locations])),
                    fmt("~n", [])]
           end,
-          Idents),
-    css_util:write_file_utf8(Outfile, Data).
+          merge_idents(Idents)),
+    css_util:to_utf8(Utf8Iolist).
+
+location_to_utf8({Filename, Lines}) ->
+    LinesStr = css_util:to_utf8(lines_to_utf8(Lines)),
+    case LinesStr of
+        <<>> -> fmt("    ~ts~n",     [filename:basename(Filename)]);
+        _    -> fmt("    ~ts:~ts~n", [filename:basename(Filename), LinesStr])
+    end.
 
 lines_to_utf8(Lines) ->
-    css_util:join([fmt("~b", [L]) || L <- Lines], ",").
+    css_util:join([fmt("~b", [L]) || L <- Lines, L /= -1], ",").
 
 fmt(Format, Args) ->
     io_lib:format(Format, Args).
