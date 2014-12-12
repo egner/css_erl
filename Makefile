@@ -2,39 +2,39 @@
 # vim: set filetype=makefile fileencoding=utf-8 sw=4 sts=4:
 # Refer to license at the end of this file.
 #
-# Make or run tests for css_erl library.
+# Make or run tests for the 'css_erl' library.
 # SE, created 10-Dec-2014, GNU Make 3.81 on MacOSX 10.9.5.
 
 .SUFFIXES:
 
-.PHONY: all run_tests css_erl_suites repl css_erl_lib clean_all clean
+.PHONY: all repl suites run_tests lib clean_all clean
 
-all: css_erl_lib run_tests
+all: lib run_tests
+
+# -- starting a read-eval-print loop --
+
+repl: lib suites
+	erl -pa ebin -pa test
+
+suites: $(addprefix test/, $(addsuffix .beam, $(SUITES)))
+
+test/%.beam : test/%.erl
+	erlc -o test $^
 
 # -- running the unit tests --
 
 SUITES = css_file_SUITE
 
-run_tests: css_erl_lib $(addprefix test/, $(addsuffix .beam, $(SUITES)))
+run_tests: lib $(addprefix test/, $(addsuffix .beam, $(SUITES)))
 	mkdir -p log/ct
 	ct_run -logdir log/ct -pa ebin -dir test # recompiles test/*_SUITE.erl
 	echo \# hint: open log/ct/index.html
-
-css_erl_suites: $(addprefix test/, $(addsuffix .beam, $(SUITES)))
-
-test/%.beam : test/%.erl
-	erlc -o test $^
-
-# -- starting a read-eval-print loop --
-
-repl: css_erl_lib css_erl_suites
-	erl -pa ebin -pa test
 
 # -- library 'css_erl' --
 
 MODULES = css_leex css_yecc css_util css_file css_idents
 
-css_erl_lib: $(addprefix ebin/, $(addsuffix .beam, $(MODULES)))
+lib: $(addprefix ebin/, $(addsuffix .beam, $(MODULES)))
 
 ebin/%.beam : src/%.erl
 	erlc -o ebin $^
