@@ -13,13 +13,15 @@
 %% - In [1] G.1 the non-terminal media_list uses the terminal COMMA.
 %%   This is simply an error in [1], we corrected it to ','.
 %% - There are several shift/reduce conflicts, resolved for shift.
-%% - We implement a few extensions for CSS 3, marked by (1).
+%% - We implement a few extension, for CSS 3 and things that are
+%%   'out there', marked by (1), (2) etc. Cf. css_leex.xrl.
 %% - We structure 'expr' by precedence as ',' > ' ' > '/'.
 %%
 %% References:
 %% [1] http://www.w3.org/TR/CSS21/grammar.html
 %% [2] http://erlang.org/doc/man/yecc.html
 %% [3] http://www.w3.org/TR/css3-syntax
+%% [4] http://www.w3.org/TR/2012/REC-css3-mediaqueries-20120619
 
 %% END OF HEADER TO COPY.
 
@@ -38,10 +40,11 @@ Nonterminals
    term term1 term2 unary_operator uri validator validator_s_star.
 
 Terminals
-   ')' '*' '+' ',' '-' '.' '/' ':' ';' '=' '>' '[' ']' '{' '}'
+   ')' '*' '+' ',' '-' '.' '/' ':' ';' '=' '>' '[' ']' '{' '}' '~'
    ANGLE AT_SYM CDC CDO CHARSET_SYM DASHMATCH DIMENSION EMS EXS FREQ FUNCTION
    HASH IDENT IMPORTANT_SYM IMPORT_SYM INCLUDES LENGTH MEDIA_SYM NUMBER PAGE_SYM
-   PERCENTAGE S STRING TIME URI VALIDATOR. % unused: BAD_STRING BAD_URI BAD_CHAR.
+   PERCENTAGE S STRING TIME URI VALIDATOR % unused: BAD_STRING BAD_URI BAD_CHAR.
+   ONLY NOT AND RESOLUTION. % (8)
 
 Rootsymbol
    stylesheet.
@@ -73,8 +76,8 @@ s_or_cds -> s_or_cd_plus : lists:append('$1').
 s_or_cd_plus -> s_or_cd              : ['$1'].
 s_or_cd_plus -> s_or_cd s_or_cd_plus : ['$1'|'$2'].
 
-s_or_cd -> S  : [].
-s_or_cd -> cd : ['$1'].
+s_or_cd -> s_plus : [].
+s_or_cd -> cd     : ['$1'].
 
 imports -> import_list_plus : lists:append('$1').
 
@@ -129,8 +132,46 @@ ruleset_list -> obrace_s_star ruleset_plus cbrace_s_star : '$2'.
 ruleset_plus -> ruleset              : ['$1'].
 ruleset_plus -> ruleset ruleset_plus : ['$1'|'$2'].
 
+%%% CSS2:
 media_list -> medium                         : ['$1'].
 media_list -> medium comma_s_star media_list : ['$1'|'$3'].
+
+%% -- begin CSS3 --
+
+%% NOTYET:
+
+%% media_query_list
+%%  : S* [media_query [ ',' S* media_query ]* ]?
+%%  ;
+%% media_query
+%%  : [ONLY | NOT]? S* media_type S* [ AND S* expression ]*
+%%  | expression [ AND S* expression ]*
+%%  ;
+%% media_type
+%%  : IDENT
+%%  ;
+%% expression
+%%  : '(' S* media_feature S* [ ':' S* expr ]? ')' S*
+%%  ;
+%% media_feature
+%%  : IDENT
+%%  ;
+
+%expression -> oparn_s_star media_feature_s_star colon_s_star expr cparen_s_star : {':','$2','$4'}.
+%expression -> oparn_s_star media_feature_s_star                   cparen_s_star : '$2'.
+
+%colon_s_star -> ':'.
+%colon_s_star -> ':' s_plus.
+
+%oparen_s_star -> '('.
+%oparen_s_star -> '(' s_plus.
+
+%cparen_s_star -> ')'.
+%cparen_s_star -> ')' s_plus.
+
+%media_feature_s_star -> ident_s_star : '$1'.
+
+%% -- end CSS3 --
 
 medium -> ident_s_star : '$1'.
 
@@ -160,6 +201,8 @@ combinator -> '+'        : '+'.
 combinator -> '+' s_plus : '+'.
 combinator -> '>'        : '>'.
 combinator -> '>' s_plus : '>'.
+combinator -> '~'        : '~'. % cf. css_leex.xrl, (3)
+combinator -> '~' s_plus : '~'.
 
 unary_operator -> '-' : '-'.
 unary_operator -> '+' : '+'.
@@ -172,9 +215,9 @@ declaration_list -> obrace_s_star                     cbrace_s_star : [].
 declaration_list -> obrace_s_star declaration_entries cbrace_s_star : '$2'.
 
 declaration_entries -> declaration_end                     : '$1'.
-declaration_entries -> declaration                         : ['$1'].
+declaration_entries -> declaration                         : case '$1' of bad4 -> []; _ -> ['$1'] end.
 declaration_entries -> declaration_end declaration_entries : '$1' ++ '$2'.
-declaration_entries -> declaration     declaration_entries : ['$1'|'$2'].
+declaration_entries -> declaration     declaration_entries : case '$1' of bad4 -> '$2'; _ -> ['$1'|'$2'] end.
 
 declaration_end -> ';'                         : [].
 declaration_end -> ';' s_plus                  : [].
@@ -214,6 +257,7 @@ simple_selector1 -> HASH   : {'HASH',_Line,Ident} = '$1', {id,Ident}.
 simple_selector1 -> class  : '$1'.
 simple_selector1 -> attrib : '$1'.
 simple_selector1 -> pseudo : '$1'.
+simple_selector1 -> ':' ':' IDENT : {'::','$3'}. % (7)
 
 class -> '.' ident : {class,'$2'}.
 
@@ -242,6 +286,7 @@ obrack_s_star -> '[' s_plus.
 pseudo -> ':' ident                    : {':',{ident,'$2'}}.
 pseudo -> ':' function_s_star      ')' : {':',{function,'$2',[]}}.
 pseudo -> ':' function_s_star expr ')' : {':',{function,'$2','$3'}}. % (1)
+pseudo -> ':' function_s_star '[' expr ']' ')' : {':',{function,'$2','$4'}}. % (5)
 
 validator_s_star -> validator        : '$1'.
 validator_s_star -> validator s_plus : '$1'.
@@ -259,6 +304,9 @@ declaration -> property ':' s_plus expr      : {':','$1','$4'}.
 declaration -> property ':' s_plus expr prio : {':!important','$1','$4'}.
 declaration -> property declaration_list     : {'{}','$1','$2'}. % (1)
 declaration -> percentage_s_star declaration_list : {'{}','$1','$2'}. % (1)
+
+declaration -> LENGTH        : bad4. % (4)
+declaration -> LENGTH s_plus : bad4. % (4)
 
 percentage_s_star -> PERCENTAGE        : css_leex:value('$1'). % (1)
 percentage_s_star -> PERCENTAGE s_plus : css_leex:value('$1'). % (1)
@@ -337,9 +385,32 @@ s_plus -> S s_plus.
 %% media
 %%   : MEDIA_SYM S* media_list '{' S* ruleset* '}' S*
 %%   ;
-%% media_list
-%%   : medium [ COMMA S* medium]*      % bug: COMMA -> ','
-%%   ;
+%%
+%% % -- begin CSS2 --
+%% % media_list
+%% %   : medium [ COMMA S* medium]*      % bug: COMMA -> ','
+%% %   ;
+%% % -- end CSS2 --
+%%
+%% % -- begin CSS3 --
+%% media_query_list
+%%  : S* [media_query [ ',' S* media_query ]* ]?
+%%  ;
+%% media_query
+%%  : [ONLY | NOT]? S* media_type S* [ AND S* expression ]*
+%%  | expression [ AND S* expression ]*
+%%  ;
+%% media_type
+%%  : IDENT
+%%  ;
+%% expression
+%%  : '(' S* media_feature S* [ ':' S* expr ]? ')' S*
+%%  ;
+%% media_feature
+%%  : IDENT
+%%  ;
+%% % -- end CSS3 --
+%%
 %% medium
 %%   : IDENT S*
 %%   ;

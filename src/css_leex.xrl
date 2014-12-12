@@ -18,6 +18,16 @@
 %% - We implement a few extensions for CSS 3, marked by (1).
 %% - We need to represent /* validator: PRAGMA */ comments.
 %%
+%% Extensions:
+%% (1) Some CSS 3 extensions.
+%% (2) '//' style comments.
+%% (3) '~' as operator, like '+' but with elements in between
+%% (4) Broken declarations like "padding: 8px; 7px 8px; 3px;".
+%% (5) Extended pseudos like "audio:not([controls]) { }".
+%% (6) Invalid '<style type "text/css">' and '</style>' tags.
+%% (7) The "::before" selector.
+%% (8) CSS 3 media queries. // NOTYET
+%%
 %% References:
 %% [1] http://www.w3.org/TR/CSS21/grammar.html
 %% [2] http://erlang.org/doc/man/leex.html
@@ -46,6 +56,7 @@ Badstring1      = (\"([^\n\r\f\\\"]|\\{Nl}|{Escape})*\\?)
 Badstring2      = (\'([^\n\r\f\\\']|\\{Nl}|{Escape})*\\?)
 Badcomment1     = (\/\*[^*]*\*+([^/*][^*]*\*+)*)
 Badcomment2     = (\/\*[^*]*(\*+[^/*][^*]*)*)
+Badcomment3     = (\/\/[^\n\r\f]*{Nl})
 Baduri1         = (url\({Wx}([!#$%&*-\[\]-~]|{Nonascii}|{Escape})*{Wx})
 Baduri2         = (url\({Wx}{String}{Wx})
 Baduri3         = (url\({Wx}{Badstring})
@@ -56,7 +67,7 @@ Name            = ({Nmchar}+)
 Num             = ([0-9]+|[0-9]*\.[0-9]+)
 String          = ({String1}|{String2})
 Badstring       = ({Badstring1}|{Badstring2})
-Badcomment      = ({Badcomment1}|{Badcomment2})
+Badcomment      = ({Badcomment1}|{Badcomment2}|{Badcomment3})
 Baduri          = ({Baduri1}|{Baduri2}|{Baduri3})
 Url             = (([!#$\%&*-~]|{Nonascii}|{Escape})*)
 Sx              = ([\s\t\r\n\f]+)
@@ -82,9 +93,10 @@ S               = (s|S|\\{Zero0to4}(53|73)(\r\n|[\s\t\r\n\f])?|\\(s|S))
 T               = (t|T|\\{Zero0to4}(54|74)(\r\n|[\s\t\r\n\f])?|\\(t|T))
 U               = (u|U|\\{Zero0to4}(55|75)(\r\n|[\s\t\r\n\f])?|\\(u|U))
 X               = (x|X|\\{Zero0to4}(58|78)(\r\n|[\s\t\r\n\f])?|\\(x|X))
+Y               = (y|Y|\\{Zero0to4}(59|79)(\r\n|[\s\t\r\n\f])?|\\(y|Y))
 Z               = (z|Z|\\{Zero0to4}(5a|7a)(\r\n|[\s\t\r\n\f])?|\\(z|Z))
 
-CharToken       = ([\)\*\+\,\-\.\/\:\;\=\>\[\]\{\}])
+CharToken       = ([\)\*\+\,\-\.\/\:\;\=\>\[\]\{\}\~])
 BadChar         = ([^\)\*\+\,\-\.\/\:\;\=\>\[\]\{\}])
 
 %% pacifying Dialyzer on leexinc.hrl
@@ -103,7 +115,11 @@ Rules.
 {ValidatorPragma}              : {token,{'VALIDATOR',TokenLine,to_validator(TokenChars)}}.
 \/\*[^*]*\*+([^/*][^*]*\*+)*\/ : skip_token.
 
-{Badcomment} : skip_token.
+\/\/[^\n\r\f]*{Nl} : skip_token. % (2)
+{Badcomment}       : skip_token.
+
+<style\stype\s\"text/css\"> : skip_token. % (6)
+<\/style>                   : skip_token. % (6)
 
 <!--                      : {token,{'CDO',TokenLine}}.
 -->                       : {token,{'CDC',TokenLine}}.
@@ -123,6 +139,10 @@ Rules.
 @charset\s                : {token,{'CHARSET_SYM',TokenLine}}.
 @{Ident}                  : {token,{'AT_SYM',TokenLine,ident_to_unicode(TokenChars)}}.
 
+{O}{N}{L}{Y}              : {token,{'ONLY',TokenLine}}. % (8)
+{N}{O}{T}                 : {token,{'NOT',TokenLine}}.  % (8)
+{A}{N}{D}                 : {token,{'AND',TokenLine}}.  % (8)
+
 !({Wx}|{Comment})*{I}{M}{P}{O}{R}{T}{A}{N}{T} : {token,{'IMPORTANT_SYM',TokenLine}}.
 
 {Num}{E}{M}               : {token,{'EMS',TokenLine,to_num(TokenLine, TokenChars)}}.
@@ -140,6 +160,8 @@ Rules.
 {Num}{S}                  : {token,{'TIME',TokenLine,to_num(TokenLine, TokenChars)}}.
 {Num}{H}{Z}               : {token,{'FREQ',TokenLine,to_num(TokenLine, TokenChars)}}.
 {Num}{K}{H}{Z}            : {token,{'FREQ',TokenLine,to_num(TokenLine, TokenChars)}}.
+{Num}{D}{P}{I}            : {token,{'RESOLUTION',TokenLine,to_num(TokenLine, TokenChars)}}. % (8)
+{Num}{D}{P}{C}{M}         : {token,{'RESOLUTION',TokenLine,to_num(TokenLine, TokenChars)}}. % (8)
 {Num}{Ident}              : {token,{'DIMENSION',TokenLine,to_num(TokenLine, TokenChars)}}.
 {Num}\%                   : {token,{'PERCENTAGE',TokenLine,to_num(TokenLine, TokenChars)}}.
 {Num}                     : {token,{'NUMBER',TokenLine,to_num(TokenLine, TokenChars)}}.
