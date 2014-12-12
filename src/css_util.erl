@@ -43,6 +43,8 @@ write_file_utf8(Outfile, Utf8Iolist) ->
 %% -- UTF-8 vs. Unicode codepoints vs. Utf8Iolist --
 
 %% Flatten into binary() representing UTF-8.
+%% Binaries in the input are interpreted as UTF-8 if this is
+%% possible, otherwise they are interpreted as Latin-1.
 to_utf8(Utf8Iolist) ->
     to_utf8(Utf8Iolist, <<>>).
 
@@ -51,7 +53,10 @@ to_utf8([H|T], Acc) when is_integer(H), H < 128 ->
 to_utf8([H|T], Acc) when is_integer(H) ->
     to_utf8(T, <<Acc/binary,H/utf8>>);
 to_utf8([H|T], Acc) when is_binary(H) ->
-    to_utf8(T, <<Acc/binary,H/binary>>);
+    case is_utf8(H) of
+        true -> to_utf8(T, <<Acc/binary,H/binary>>);
+        false -> to_utf8(T, to_utf8(binary_to_list(H), Acc))
+    end;
 to_utf8([H|T], Acc) when is_list(H) ->
     to_utf8(T, to_utf8(H, Acc));
 to_utf8([H|T], Acc) when is_atom(H) ->
@@ -60,6 +65,12 @@ to_utf8([], Acc) ->
     Acc;
 to_utf8(Any, Acc) when not is_list(Any) ->
     to_utf8([Any], Acc).
+
+is_utf8(<<_/utf8,More/binary>>) -> is_utf8(More);
+is_utf8(<<>>) -> true;
+is_utf8(_) -> false.
+
+
 
 %% Join the utf8_iolist()s with Sep as a separator.
 join(Args, Sep) ->
