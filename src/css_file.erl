@@ -10,31 +10,9 @@
 
 -module(css_file).
 
--export([rewrite_file/1,
-         rewrite_file/2,
-         read_file/1,
-         write_file/2,
-         scan_file/1
+-export([read_file/1,
+         write_file/2
         ]).
-
-%% -- rewrite CSS --
-
-%% Transcode CSS from Infile to some Outfile.
-%% Returns {ok,Outfile}|{error,_,_}.
-rewrite_file(Infile) ->
-    Outfile = css_util:to_codepoints(fmt("~ts-rewrite.css",
-                                         [filename:rootname(Infile)])),
-    case rewrite_file(Infile, Outfile) of
-        ok -> {ok,Outfile};
-        Error={error,_,_} -> Error
-    end.
-
-%% Transcode CSS from Infile to Outfile. Returns ok|{error,_,_}.
-rewrite_file(Infile, Outfile) ->
-    case read_file(Infile) of
-        {ok,Css} -> write_file(Outfile, Css);
-        Error={error,_,_} -> Error
-    end.
 
 %% -- reading CSS --
 
