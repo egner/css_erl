@@ -64,6 +64,8 @@ check_readback(Infile, Css, Outfile) -> % ok|{error,_,_}
 %% data structure representing the CSS expressions.
 read_file(Filename) ->
     case scan_file(Filename) of
+        {ok,[]} ->
+            {ok,[]};
         {ok,Tokens} ->
             case css_yecc:parse(Tokens) of
                 OkCss={ok,_} ->
