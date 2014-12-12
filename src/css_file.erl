@@ -32,30 +32,8 @@ rewrite_file(Infile) ->
 %% Transcode CSS from Infile to Outfile. Returns ok|{error,_,_}.
 rewrite_file(Infile, Outfile) ->
     case read_file(Infile) of
-        {ok,Css} ->
-            case write_file(Outfile, Css) of
-                ok -> check_readback(Infile, Css, Outfile);
-                Error={error,_,_} -> Error
-            end;
+        {ok,Css} -> write_file(Outfile, Css);
         Error={error,_,_} -> Error
-    end.
-
-check_readback(Infile, Css, Outfile) -> % ok|{error,_,_}
-    case read_file(Outfile) of
-        {ok,CssReadback} ->
-            case css_util:check_diff(Css, CssReadback) of
-                ok -> ok;
-                {error,Reason,Details} ->
-                    {error,css_readback_failed,
-                     [{infile,Infile},
-                      {outfile,Outfile},
-                      {reason,Reason}|Details]}
-            end;
-        {error,Reason,Details} ->
-            {error,css_readback_failed,
-             [{infile,Infile},
-              {outfile,Outfile},
-              {reason,Reason}|Details]}
     end.
 
 %% -- reading CSS --
@@ -104,8 +82,28 @@ scan_file(Filename) ->
 %% -- writing CSS --
 
 %% Write a CSS structure into Outfile. Returns ok|{error,_,_}.
+%%    The output file is then read back and compared to Css in order
+%% to detect problems in the CSS reader/writer as early as possible.
+%% This has been proven worth the milliseconds that it takes.
 write_file(Outfile, Css) ->
-    css_util:write_file_utf8(Outfile, wr_entries(Css)).
+    case css_util:write_file_utf8(Outfile, wr_entries(Css)) of
+        ok -> check_readback(Css, Outfile);
+        Error={error,_,_} -> Error
+    end.
+
+check_readback(Css, Outfile) -> % ok|{error,_,_}
+    case read_file(Outfile) of
+        {ok,CssReadback} ->
+            case css_util:check_diff(Css, CssReadback) of
+                ok -> ok;
+                {error,Reason,Details} ->
+                    {error,css_readback_failed,
+                     [{outfile,Outfile},{css,Css},{reason,Reason}|Details]}
+            end;
+        {error,Reason,Details} ->
+            {error,css_readback_failed,
+             [{outfile,Outfile},{css,Css},{reason,Reason}|Details]}
+    end.
 
 wr_entries(Entries) when is_list(Entries) ->
     join_map(fun wr_entry/1, Entries, "\n\n").
@@ -149,7 +147,7 @@ wr_selector_list(SelectorList) ->
     case lists:reverse(SelectorList) of
         [{'/*validator:*/',Pragma}|RevSelectors] ->
             S = join_map(fun wr_selector/1, lists:reverse(RevSelectors), ", "),
-            <<S/binary,(wr_validator(Pragma))/binary>>;
+            [S,wr_validator(Pragma)];
         _ ->
             join_map(fun wr_selector/1, SelectorList, ", ")
     end.
@@ -166,7 +164,7 @@ wr_selector({selector,[{' ',SS}|SSs]}) ->
          " ").
 
 wr_simple_selector({'*',SS1s}) ->
-    case wr_simple_selector1s(SS1s) of
+    case css_util:to_utf8(wr_simple_selector1s(SS1s)) of
         <<>> -> <<"*">>;
         Other -> Other
     end;
@@ -295,7 +293,7 @@ join_map(Fun, List, Sep) ->
 number_to_string(N) when is_integer(N) ->
     integer_to_binary(N);
 number_to_string(X) when is_float(X) ->
-    S1 = io_lib:format("~w", [X]), % short, if it works
+    S1 = lists:flatten(io_lib:format("~w", [X])), % short, if it works
     X1 = list_to_float(S1),
     case X1 =:= X of
         true  -> S1;
