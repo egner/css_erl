@@ -123,7 +123,7 @@ check_files(Config, CheckFun, Files) -> % ok|{error,_,_}
     end.
 
 write_term(Outfile, Term) ->
-    Data = io_lib:fwrite("~p.~n", [Term]),
+    Data = io_lib:fwrite("%% coding: latin-1~n~p.~n", [Term]),
     {ok,_} = {file:write_file(Outfile, Data),Outfile}.
 
 read_term(Infile) -> % {ok,Term}|false
