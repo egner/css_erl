@@ -271,7 +271,7 @@ unescape("\\f" ++ T, Acc) -> unescape(T, ["\f"|Acc]);
 unescape("\\r" ++ T, Acc) -> unescape(T, ["\r"|Acc]);
 unescape("\\" ++ Escape, Acc) ->
     UnicodeRe = "^([0-9a-fA-F]{1,6})(?:\r\n|[\s\t\r\n\f])?",
-    case re:split(Escape, UnicodeRe) of
+    case re:split(Escape, UnicodeRe, [{return,list}]) of
         [[],Hex,T] -> unescape(T, [[list_to_integer(Hex, 16)]|Acc]);
         [_] -> unescape(Escape, Acc)
     end;
