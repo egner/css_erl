@@ -1,0 +1,87 @@
+/* Random collection of well-formed contructs. */
+
+body {
+    margin: 0px;
+    padding: 0px;
+    background-color: #abcdef;
+    font-family: Helvetica, Arial, Calibri;
+    font-size: 14px;
+}
+
+input:required:invalid {
+    border-color: #ABCD01;
+}
+
+#mydiv1 {
+     width: 4em;
+}
+
+#mydiv2 {
+     width: 4em  /* no ';' */
+}
+
+div#mydiv3 {
+    display: inline-block;
+    -webkit-border-radius: 4px;
+}
+
+div#mydiv4 {
+    position: absolute;
+    z-index: 200;
+}
+
+div#mydiv5 + div#mydiv6 {
+    color: #123456;
+}
+
+div#mydiv7.overlapping div {
+    color: #123456;
+}
+
+.whatnot1 {  }
+
+input[type=text] {
+    border: 1px solid rgb(200, 200, 200);
+}
+
+.no-padding input[type=checkbox]:checked + label {
+    background-color: #000000;
+}
+
+#whatnot2 {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+whatnot3 {
+    background-image: linear-gradient(rgb(255, 255, 255), rgb(0, 0, 0));
+}
+
+#whatnot4 outer-bar li {
+    float: left; 
+}
+
+#whatnot4 li:first-child img { 
+    width: 100px;
+}
+
+#whatnot4 li:first-child a {
+   padding-right: 2px; padding-top: 10px;
+}
+
+#whatnot4 li:nth-last-child(1) {
+   float: right;
+}
+
+whatnot5 > table td.num {
+    text-align: right;
+}
+
+.flipped {
+    -webkit-transform: rotate(-90deg);
+       -moz-transform: rotate(-90deg);
+        -ms-transform: rotate(-90deg);
+         -o-transform: rotate(-90deg);
+            transform: rotate(-90deg);
+}

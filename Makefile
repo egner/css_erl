@@ -7,17 +7,34 @@
 
 .SUFFIXES:
 
-.PHONY: all
+.PHONY: all run_tests css_erl_suites repl css_erl_lib clean_all clean
 
-all: css_erl
+all: css_erl_lib run_tests
+
+# -- running the unit tests --
+
+SUITES = css_file_SUITE
+
+run_tests: css_erl_lib $(addprefix test/, $(addsuffix .beam, $(SUITES)))
+	mkdir -p log/ct
+	ct_run -logdir log/ct -pa ebin -dir test # recompiles test/*_SUITE.erl
+	echo \# hint: open log/ct/index.html
+
+css_erl_suites: $(addprefix test/, $(addsuffix .beam, $(SUITES)))
+
+test/%.beam : test/%.erl
+	erlc -o test $^
+
+# -- starting a read-eval-print loop --
+
+repl: css_erl_lib css_erl_suites
+	erl -pa ebin -pa test
 
 # -- library 'css_erl' --
 
-CSS_ERL_MODULES = css_leex css_yecc css_util css_file css_idents
+MODULES = css_leex css_yecc css_util css_file css_idents
 
-.PHONY: css_erl
-
-css_erl: $(addprefix ebin/, $(addsuffix .beam, $(CSS_ERL_MODULES)))
+css_erl_lib: $(addprefix ebin/, $(addsuffix .beam, $(MODULES)))
 
 ebin/%.beam : src/%.erl
 	erlc -o ebin $^
@@ -32,10 +49,11 @@ ebin/css_leex.beam: src/css_leex.xrl
 
 # -- cleaning up --
 
-.PHONY: clean
+clean_all: clean
+	rm -rf log/ct
 
 clean:
-	rm -f ebin/*.beam ebin/*.erl
+	rm -f ebin/*.beam ebin/*.erl test/*.beam
 
 # -----------------------------------------------------------------------------
 #
