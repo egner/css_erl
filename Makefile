@@ -11,10 +11,13 @@
 
 all: lib run_tests
 
+# Define this as -pa PATH_TO_YAWS_EBIN_DIR if you have it
+PA_YAWS =
+
 # -- starting a read-eval-print loop --
 
 repl: lib suites
-	erl -pa ebin -pa test
+	erl -pa ebin -pa test $(PA_YAWS)
 
 suites: $(addprefix test/, $(addsuffix .beam, $(SUITES)))
 
@@ -23,11 +26,11 @@ test/%.beam : test/%.erl
 
 # -- running the unit tests --
 
-SUITES = css_file_SUITE
+SUITES = css_file_SUITE css_idents_SUITE
 
 run_tests: lib $(addprefix test/, $(addsuffix .beam, $(SUITES)))
 	mkdir -p log/ct
-	ct_run -logdir log/ct -pa ebin -dir test # recompiles test/*_SUITE.erl
+	ct_run -logdir log/ct -pa ebin $(PA_YAWS) -dir test # recompiles test/*_SUITE.erl
 	echo \# hint: open log/ct/index.html
 
 # -- library 'css_erl' --

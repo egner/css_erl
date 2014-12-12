@@ -5,75 +5,23 @@
 %% Extract identifier literals from .erl/.hrl/.html/.yaws-files.
 %% SE, created 1-Sep-2013, in Erlang/OTP R16B03.
 %%
-%% Identifier are represented as binary() containing UTF-8,
-%% and are converted to lowercase.
+%% An identifier is represented by {ident,Ident,[Location]},
+%% where Ident is a binary() containing UTF-8, in lowercase,
+%% and Location is of type {Filename,[Line::integer()]},
+%% where Line -1 indicates that the line is unknown.
 
 -module(css_idents).
 
--export([read_ident_literals/3,
-         read_ident_literals_erl/2,
+-export([read_ident_literals_erl/2,
          read_ident_literals_yaws/1,
          read_ident_literals_css/1,
          %% NOTYET: read_ident_literals_js/1
          print_idents/1,
-         css_idents/1,
-         list_files/1
+         merge_idents/1,
+         css_idents/1
         ]).
 
-%% Extract all CSS identifiers (class, id) from the files specified
-%% by InfileWildcards (a list of arguments to css_util:wildcard/2),
-%% using IncludeDirWildcards for resolving -include[_lib].
-%% Opts contains options, currently only {quiet,true|false}.
-%%    The function returns {ok,[{ident,Ident,[Location,..]},..]},
-%% or {error,_,_}. Location is {File,[Line|-1,...]}. Ident is a
-%% binary() containing UTF-8.
-read_ident_literals(InfileWildcards, IncludeDirWildcards, Opts) ->
-    IncludeDirs = list_files(IncludeDirWildcards),
-    Infiles = list_files(InfileWildcards),
-    Quiet = proplists:get_bool(quiet, Opts),
-    {ok,Idents} =
-      lists:foldl(
-        fun (_Infile, Error={error,_,_}) ->
-                Error;
-            (Infile, OkAcc={ok,Acc}) ->
-                case not Quiet of
-                    true -> io:fwrite("Scanning: ~p~n", [Infile]);
-                    false -> ok
-                end,
-                InfileStr = css_util:to_codepoints(Infile),
-                case filename:extension(InfileStr) of
-                    Ext when Ext =:= ".erl"; Ext =:= ".hrl" ->
-                        case read_ident_literals_erl(InfileStr, IncludeDirs) of
-                            {ok,Idents} -> {ok,[Idents|Acc]};
-                            Error={error,_,_} -> Error
-                        end;
-                    Ext when Ext =:= ".html"; Ext =:= ".yaws" ->
-                        case read_ident_literals_yaws(InfileStr) of
-                            {ok,Idents} -> {ok,[Idents|Acc]};
-                            Error={error,_,_} -> Error
-                        end;
-                    ".css" ->
-                        case read_ident_literals_css(InfileStr) of
-                            {ok,Idents} -> {ok,[Idents|Acc]};
-                            Error={error,_,_} -> Error
-                        end;
-                    _ ->
-                        OkAcc
-                end
-        end,
-        {ok,[]},
-        Infiles),
-    MergeIdents = merge_idents(Idents),
-    case not Quiet of
-        true -> io:fwrite("Found ~b identifiers.~n", [length(MergeIdents)]);
-        false -> ok
-    end,
-    {ok,MergeIdents}.
-
-list_files(DirWildcards) ->
-    lists:usort([F || W <- DirWildcards,
-                      F <- filelib:wildcard(W)]).
-
+%% Print a deep list of {ident,_,_}, returning a binary() with UTF-8.
 print_idents(Idents) ->
     Utf8Iolist =
         lists:map(
@@ -101,6 +49,7 @@ lines_to_utf8(Lines) ->
 fmt(Format, Args) ->
     io_lib:format(Format, Args).
 
+%% Merge a deep list of {ident,_,_} entries, returning [{ident,_,_}].
 merge_idents(Idents) ->
     lists:reverse(
       lists:foldl(

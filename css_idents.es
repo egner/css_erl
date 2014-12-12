@@ -8,12 +8,17 @@
 %% SE, created 12-Dec-2014, in Erlang/OTP 17.
 %%
 %% Important: .html and .yaws files can only be processed when Yaws
-%%            is contained in the path of the Erlang VM, i.e., "-pa".
+%%            is contained in the path of the Erlang VM, which you
+%%            can add as a "-pa PATH" argument above.
+%%
+%% Examples (reports #hello-world from somedefs2.css):
+%% ./css_idents.es test/\*_data/somedefs2.css test/css_idents_SUITE.erl
+%% ./css_idents.es test/\*_data/somedefs2.css test/css_idents_SUITE_data/somethings.html
 
 report_css_idents(InfileWildcards, IncludeDirWildcards) ->
-    IncludeDirs = css_idents:list_files(IncludeDirWildcards),
+    IncludeDirs = list_files(IncludeDirWildcards),
     log("; includes: ~p.~n", [IncludeDirs]),
-    Files = css_idents:list_files(InfileWildcards),
+    Files = list_files(InfileWildcards),
     {CssFiles,NonCss} = partition_by_extension(Files, "css"),
     {ErlFiles,NonErl} = partition_by_extension(NonCss, "(erl|hrl)"),
     {YawsFiles,_} = partition_by_extension(NonErl, "(html|htm|yaws)"),
@@ -21,10 +26,10 @@ report_css_idents(InfileWildcards, IncludeDirWildcards) ->
     YawsIdents = read_yaws_idents(YawsFiles, IncludeDirs),
     SourceIdents = lists:usort(ErlIdents ++ YawsIdents),
     Source = sets:from_list([Ident || {ident,Ident,_} <- SourceIdents]),
-    log("; read ~b identifiers from ~b source files.~n",
+    log("; read ~b identifiers from ~b source files.~n~n",
         [sets:size(Source), length(ErlFiles) + length(YawsFiles)]),
     CssIdents = read_css_idents(CssFiles, IncludeDirs),
-    log("; read ~b identifiers from ~b CSS files.~n",
+    log("; read ~b identifiers from ~b CSS files.~n~n",
         [length(CssIdents), length(CssFiles)]),
     UnreferencedCss =
         lists:filter(fun ({ident,Ident,_}) ->
@@ -44,7 +49,13 @@ log(Format, Args) ->
     io:fwrite(standard_error, Format, Args).
 
 read_list(ReadFun, Files) ->
-    lists:usort(lists:append([ReadFun(F) || F <- Files])).
+    css_idents:merge_idents(
+      lists:map(
+	fun (F) ->
+		log("; ~p.~n", [F]),
+		ReadFun(F)
+	end,
+	Files)).
 
 read_css_idents(Files, _IncludeDirs) ->
     read_list(
@@ -74,6 +85,10 @@ partition_by_extension(Filenames, ExtRe) ->
     {ok,ExtRe1} = re:compile("\\." ++ ExtRe ++ "$", [caseless,no_auto_capture]),
     lists:partition(fun (F) -> re:run(F, ExtRe1, [{capture,none}]) =:= match end,
                     Filenames).
+
+list_files(DirWildcards) ->
+    lists:usort([F || W <- DirWildcards,
+                      F <- filelib:wildcard(W)]).
 
 main([]) ->
     io:fwrite(standard_error, "usage: [ -I IncludeWc ... ] FileWc ....~n", []),
