@@ -12,7 +12,9 @@
 all: lib run_tests
 
 # Define this as -pa PATH_TO_YAWS_EBIN_DIR if you have it
+ifndef PA_YAWS
 PA_YAWS =
+endif
 
 # -- starting a read-eval-print loop --
 
