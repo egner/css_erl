@@ -33,13 +33,15 @@ in case you can rewrite the Erlang code such that it contains
 all CSS identifiers as literals.
 
 Starting points:
-- `make`: build and run unit tests. You might want to set the
+
+* `make`: build and run unit tests. You might want to set the
   environment variable `PA_YAWS` to let the lib know where to
   find `yaws/ebin`, if you have one.
-- `make lib && ./css_rewrite.es test/css_file_SUITE_data/somedefs.css a.css && more a.css`:
+* `make lib && ./css_rewrite.es test/css_file_SUITE_data/somedefs.css a.css && more a.css`:
   Read `somedefs.css` and print it out again.
-- `make lib && ./css_idents.es test/\*_data/somedefs2.css test/css_idents_SUITE.erl`:
+* `make lib && ./css_idents.es test/\*_data/somedefs2.css test/css_idents_SUITE.erl`:
   Find out that `hello-world` is in the CSS but not in the .erl file.
+* `make repl`: build the lib and the test modules and start a properly set up interactive Erlang interpreter.
 
 #### License.
 
