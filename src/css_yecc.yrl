@@ -22,6 +22,8 @@
 %% [2] http://erlang.org/doc/man/yecc.html
 %% [3] http://www.w3.org/TR/css3-syntax
 %% [4] http://www.w3.org/TR/2012/REC-css3-mediaqueries-20120619
+%% [5] http://www.w3schools.com/cssref/css_selectors.asp
+%% [6] http://www.w3.org/TR/selectors/#attribute-substrings
 
 %% END OF HEADER TO COPY.
 
@@ -31,23 +33,32 @@ Nonterminals
    comma_s_star declaration declaration_end declaration_entries declaration_list
    element_name expr expr1 expr2 expr3 function function_s_star hexcolor ident
    ident_s_star import import_list import_list_plus import_sym_s_star imports
-   media media_list media_sym_s_star medium obrace_s_star obrack_s_star page
+   media media_sym_s_star obrace_s_star obrack_s_star page
+   media_query_list1 media_query media_type_s_star expression_list and_s_star
+     only_or_not_s_star only_or_not expression colon_s_star oparen_s_star
+     cparen_s_star media_feature_s_star
    page_sym_s_star percentage_s_star prio property pseudo pseudo_page rmp_list
    rmp_list_plus rmps ruleset ruleset_list ruleset_or_media_or_page ruleset_plus
    s_or_cd s_or_cd_plus s_or_cds s_plus selector selector1 selector_list
    semicolon_s_star simple_selector simple_selector1 simple_selector1_plus
    slash_s_star string string_or_uri string_or_uri_s_star stylesheet stylesheet1
-   term term1 term2 unary_operator uri validator validator_s_star.
+   term term1 term2 unary_operator uri validator validator_s_star
+   pseudo_sym
+   function2 function2_s_star equals_s_star at_sym2_s_star kv_list.
 
 Terminals
-   ')' '*' '+' ',' '-' '.' '/' ':' ';' '=' '>' '[' ']' '{' '}' '~'
-   ANGLE AT_SYM CDC CDO CHARSET_SYM DASHMATCH DIMENSION EMS EXS FREQ FUNCTION
+   '(' ')' '*' '+' ',' '-' '.' '/' ':' ';' '=' '>' '[' ']' '{' '}' '~' '#'
+   ANGLE AT_SYM AT_SYM2 CDC CDO CHARSET_SYM DASHMATCH DIMENSION EMS EXS FREQ FUNCTION
    HASH IDENT IMPORTANT_SYM IMPORT_SYM INCLUDES LENGTH MEDIA_SYM NUMBER PAGE_SYM
    PERCENTAGE S STRING TIME URI VALIDATOR % unused: BAD_STRING BAD_URI BAD_CHAR.
-   ONLY NOT AND RESOLUTION. % (8)
+   ONLY NOT AND RESOLUTION % (8)
+   PSEUDO % (7)
+   CARETMATCH TILDEMATCH DOLLARMATCH STARMATCH % (9)
+   LUA. % (18)
 
 Rootsymbol
    stylesheet.
+
 
 %% --- rules ---
 
@@ -109,8 +120,8 @@ ruleset_or_media_or_page -> media   : '$1'.
 ruleset_or_media_or_page -> page    : '$1'.
 ruleset_or_media_or_page -> at      : '$1'.
 
-import -> import_sym_s_star string_or_uri_s_star            semicolon_s_star : {'@import','$2',[]}.
-import -> import_sym_s_star string_or_uri_s_star media_list semicolon_s_star : {'@import','$2','$3'}.
+import -> import_sym_s_star string_or_uri_s_star                   semicolon_s_star : {'@import','$2',[]}.
+import -> import_sym_s_star string_or_uri_s_star media_query_list1 semicolon_s_star : {'@import','$2','$3'}.
 
 import_sym_s_star -> IMPORT_SYM.
 import_sym_s_star -> IMPORT_SYM s_plus.
@@ -121,7 +132,8 @@ string_or_uri_s_star -> string_or_uri s_plus : '$1'.
 string_or_uri -> string : '$1'.
 string_or_uri -> uri    : '$1'.
 
-media -> media_sym_s_star media_list ruleset_list : {'@media','$2','$3'}.
+media -> media_sym_s_star                   ruleset_list : {'@media',[],'$2'}.
+media -> media_sym_s_star media_query_list1 ruleset_list : {'@media','$2','$3'}.
 
 media_sym_s_star -> MEDIA_SYM.
 media_sym_s_star -> MEDIA_SYM s_plus.
@@ -133,12 +145,15 @@ ruleset_plus -> ruleset              : ['$1'].
 ruleset_plus -> ruleset ruleset_plus : ['$1'|'$2'].
 
 %%% CSS2:
-media_list -> medium                         : ['$1'].
-media_list -> medium comma_s_star media_list : ['$1'|'$3'].
+%media_list -> medium                         : ['$1'].
+%media_list -> medium comma_s_star media_list : ['$1'|'$3'].
+%
+%medium -> ident_s_star : '$1'.
 
 %% -- begin CSS3 --
 
-%% NOTYET:
+%% According to [4] media_query_list replaces media_list. However, the
+%% former can also be entirely empty, unlike the latter.
 
 %% media_query_list
 %%  : S* [media_query [ ',' S* media_query ]* ]?
@@ -157,23 +172,48 @@ media_list -> medium comma_s_star media_list : ['$1'|'$3'].
 %%  : IDENT
 %%  ;
 
-%expression -> oparn_s_star media_feature_s_star colon_s_star expr cparen_s_star : {':','$2','$4'}.
-%expression -> oparn_s_star media_feature_s_star                   cparen_s_star : '$2'.
+media_query_list1 -> media_query                                     : ['$1'].
+media_query_list1 -> media_query ','        media_query_list1        : ['$1'|'$3'].
+media_query_list1 -> media_query ','        media_query_list1 s_plus : ['$1'|'$3'].
+media_query_list1 -> media_query ',' s_plus media_query_list1        : ['$1'|'$4'].
+media_query_list1 -> media_query ',' s_plus media_query_list1 s_plus : ['$1'|'$4'].
 
-%colon_s_star -> ':'.
-%colon_s_star -> ':' s_plus.
+media_query ->                    media_type_s_star                 : {media_query,'$1',[]}.
+media_query ->                    media_type_s_star expression_list : {media_query,'$1','$2'}.
+media_query -> only_or_not_s_star media_type_s_star                 : {media_query,{'$1','$2'},[]}.
+media_query -> only_or_not_s_star media_type_s_star expression_list : {media_query,{'$1','$2'},'$3'}.
+media_query -> expression                                           : {media_query,any,['$1']}.
+media_query -> expression expression_list                           : {media_query,any,['$1'|'$2']}.
 
-%oparen_s_star -> '('.
-%oparen_s_star -> '(' s_plus.
+media_type_s_star -> ident_s_star : '$1'.
 
-%cparen_s_star -> ')'.
-%cparen_s_star -> ')' s_plus.
+expression_list -> and_s_star expression                 : ['$2'].
+expression_list -> and_s_star expression expression_list : ['$2'|'$3'].
 
-%media_feature_s_star -> ident_s_star : '$1'.
+and_s_star -> AND        : 'and'.
+and_s_star -> AND s_plus : 'and'.
+
+only_or_not_s_star -> only_or_not        : '$1'.
+only_or_not_s_star -> only_or_not s_plus : '$1'.
+
+only_or_not -> ONLY : 'only'.
+only_or_not -> NOT  : 'not'.
+
+expression -> oparen_s_star media_feature_s_star colon_s_star expr cparen_s_star : {':','$2','$4'}.
+expression -> oparen_s_star media_feature_s_star                   cparen_s_star : '$2'.
+
+colon_s_star -> ':'        : ':'.
+colon_s_star -> ':' s_plus : ':'.
+
+oparen_s_star -> '('        : '('.
+oparen_s_star -> '(' s_plus : '('.
+
+cparen_s_star -> ')'        : ')'.
+cparen_s_star -> ')' s_plus : ')'.
+
+media_feature_s_star -> ident_s_star : '$1'.
 
 %% -- end CSS3 --
-
-medium -> ident_s_star : '$1'.
 
 page -> page_sym_s_star             declaration_list : {'@page',[],'$2'}.
 page -> page_sym_s_star pseudo_page declaration_list : {'@page','$2','$3'}.
@@ -181,15 +221,23 @@ page -> page_sym_s_star pseudo_page declaration_list : {'@page','$2','$3'}.
 page_sym_s_star -> PAGE_SYM.
 page_sym_s_star -> PAGE_SYM s_plus.
 
-pseudo_page -> ':' ident_s_star : ['$2'].
+pseudo_page -> pseudo_sym ident_s_star : ['$2']. % (7)
 
-% (1)
-at -> at_sym_s_star                           ruleset      : {'@','$1','$2'}.
-at -> at_sym_s_star function                  ruleset_list : {'@','$1','$2','$3'}.
-at -> at_sym_s_star function validator_s_star ruleset_list : {'@','$1','$2','$3','$4'}.
+% (1), (10)
+at -> at_sym_s_star                            ruleset          : {'@R','$1','$2'}.
+at -> at_sym_s_star  function                  ruleset_list     : {'@R','$1','$2','$3'}.
+at -> at_sym_s_star  function validator_s_star ruleset_list     : {'@R','$1','$2','$3','$4'}.
+at -> at_sym2_s_star                           declaration_list : {'@D','$1','$2'}.
+at -> at_sym2_s_star function                  declaration_list : {'@D','$1','$2','$3'}.
+at -> at_sym2_s_star function validator_s_star declaration_list : {'@D','$1','$2','$3','$4'}.
+at -> at_sym_s_star ':' s_plus               expr               semicolon_s_star : {'@:','$1','$4'}. % (16)
+at -> at_sym_s_star ':' s_plus oparen_s_star expr cparen_s_star semicolon_s_star : {'@:','$1','$5'}. % (16)
 
 at_sym_s_star -> AT_SYM        : css_leex:ident_to_at_sym('$1').
 at_sym_s_star -> AT_SYM s_plus : css_leex:ident_to_at_sym('$1').
+
+at_sym2_s_star -> AT_SYM2        : css_leex:ident_to_at_sym('$1').
+at_sym2_s_star -> AT_SYM2 s_plus : css_leex:ident_to_at_sym('$1').
 
 slash_s_star -> '/'          : '/'.
 slash_s_star -> '/' s_plus   : '/'.
@@ -207,9 +255,11 @@ combinator -> '~' s_plus : '~'.
 unary_operator -> '-' : '-'.
 unary_operator -> '+' : '+'.
 
-property -> ident_s_star : '$1'.
+property -> ident_s_star     : '$1'.
+property -> '*' ident_s_star : {'*','$2'}. % (14)
 
-ruleset -> selector_list declaration_list : {ruleset,'$1','$2'}.
+ruleset -> selector_list              declaration_list : {ruleset,'$1','$2'}.
+% ruleset -> selector_list comma_s_star declaration_list : {ruleset,'$1','$3'}. % (19)
 
 declaration_list -> obrace_s_star                     cbrace_s_star : [].
 declaration_list -> obrace_s_star declaration_entries cbrace_s_star : '$2'.
@@ -234,6 +284,7 @@ cbrace_s_star -> '}'.
 cbrace_s_star -> '}' s_plus.
 
 selector_list -> selector                                             : [{selector,'$1'}].
+selector_list -> selector comma_s_star                                : [{selector,'$1'}]. % (19)
 selector_list -> selector comma_s_star selector_list                  : [{selector,'$1'}|'$3'].
 selector_list -> selector                            validator_s_star : [{selector,'$1'},'$2'].
 selector_list -> selector comma_s_star selector_list validator_s_star : [{selector,'$1'}|'$3'] ++ ['$4'].
@@ -257,7 +308,7 @@ simple_selector1 -> HASH   : {'HASH',_Line,Ident} = '$1', {id,Ident}.
 simple_selector1 -> class  : '$1'.
 simple_selector1 -> attrib : '$1'.
 simple_selector1 -> pseudo : '$1'.
-simple_selector1 -> ':' ':' IDENT : {'::','$3'}. % (7)
+simple_selector1 -> '#' class : {'#','$2'}. % (15)
 
 class -> '.' ident : {class,'$2'}.
 
@@ -265,7 +316,7 @@ element_name -> IDENT : css_leex:ident_to_atom('$1').
 element_name -> '*'   : '*'.
 
 attrib -> obrack_s_star ident_s_star                               ']' : {attr,'$2'}.
-attrib -> obrack_s_star ident_s_star attrib1_s_star attrib2_s_star ']' : {attr,'$2','$3','$4'}.
+attrib -> obrack_s_star ident_s_star attrib1_s_star attrib2_s_star ']' : css_leex:fix_attr({attr,'$2','$3','$4'}).
 
 attrib1_s_star -> attrib1        : '$1'.
 attrib1_s_star -> attrib1 s_plus : '$1'.
@@ -273,20 +324,27 @@ attrib1_s_star -> attrib1 s_plus : '$1'.
 attrib1 -> '='       : '='.
 attrib1 -> INCLUDES  : '~='.
 attrib1 -> DASHMATCH : '|='.
+attrib1 -> CARETMATCH  : '^='.
+attrib1 -> TILDEMATCH  : '~='.
+attrib1 -> DOLLARMATCH : '$='.
+attrib1 -> STARMATCH   : '*='.
 
 attrib2_s_star -> attrib2        : '$1'.
 attrib2_s_star -> attrib2 s_plus : '$1'.
 
-attrib2 -> ident  : '$1'.
+attrib2 -> ident  : {ident,'$1'}.
 attrib2 -> string : '$1'.
 
 obrack_s_star -> '['.
 obrack_s_star -> '[' s_plus.
 
-pseudo -> ':' ident                    : {':',{ident,'$2'}}.
-pseudo -> ':' function_s_star      ')' : {':',{function,'$2',[]}}.
-pseudo -> ':' function_s_star expr ')' : {':',{function,'$2','$3'}}. % (1)
-pseudo -> ':' function_s_star '[' expr ']' ')' : {':',{function,'$2','$4'}}. % (5)
+pseudo -> pseudo_sym ident                            : {'$1',{ident,'$2'}}.
+pseudo -> pseudo_sym function_s_star      ')'         : {'$1',{function,'$2',[]}}.
+pseudo -> pseudo_sym function_s_star expr ')'         : {'$1',{function,'$2','$3'}}. % (1)
+pseudo -> pseudo_sym function_s_star '[' expr ']' ')' : {'$1',{function,'$2','$4'}}. % (5)
+
+pseudo_sym -> ':'    : ':'.  % CSS2
+pseudo_sym -> PSEUDO : '::'. % CSS3 (7)
 
 validator_s_star -> validator        : '$1'.
 validator_s_star -> validator s_plus : '$1'.
@@ -298,12 +356,11 @@ ident_s_star -> ident s_plus : '$1'.
 
 ident -> IDENT : css_leex:value('$1').
 
-declaration -> property ':'        expr      : {':','$1','$3'}.
-declaration -> property ':'        expr prio : {':!important','$1','$3'}.
-declaration -> property ':' s_plus expr      : {':','$1','$4'}.
-declaration -> property ':' s_plus expr prio : {':!important','$1','$4'}.
-declaration -> property declaration_list     : {'{}','$1','$2'}. % (1)
+declaration -> property colon_s_star expr         : {':','$1','$3'}.
+declaration -> property colon_s_star expr prio    : {':!important','$1','$3'}.
+declaration -> property declaration_list          : {'{}','$1','$2'}. % (1)
 declaration -> percentage_s_star declaration_list : {'{}','$1','$2'}. % (1)
+declaration -> property equals_s_star expr        : {':','$1','$3'}. % (17)
 
 declaration -> LENGTH        : bad4. % (4)
 declaration -> LENGTH s_plus : bad4. % (4)
@@ -335,8 +392,8 @@ term -> term2                       : '$1'.
 term -> term2 s_plus                : '$1'.
 term -> hexcolor                    : '$1'.
 term -> hexcolor s_plus             : '$1'.
-term -> function                    : '$1'.
-term -> function s_plus             : '$1'.
+term -> function2                   : '$1'.
+term -> function2 s_plus            : '$1'.
 
 term1 -> NUMBER     : css_leex:value('$1').
 term1 -> PERCENTAGE : css_leex:value('$1').
@@ -347,22 +404,41 @@ term1 -> ANGLE      : css_leex:value('$1').
 term1 -> TIME       : css_leex:value('$1').
 term1 -> FREQ       : css_leex:value('$1').
 term1 -> DIMENSION  : css_leex:value('$1').
+term1 -> RESOLUTION : css_leex:value('$1').
+term1 -> LUA        : {lua,css_leex:value('$1')}. % (18)
 
 term2 -> string : '$1'.
 term2 -> ident  : {ident,'$1'}.
 term2 -> uri    : '$1'.
+term2 -> pseudo_sym ident : {':','$2'}.
+term2 -> '.' ident : {'.','$2'}. % (12)
+term2 -> at_sym_s_star : {'@','$1'}. % (16)
 
 string -> STRING : {string,css_leex:value('$1')}.
 
 uri -> URI : {uri,css_leex:value('$1')}.
 
-function -> function_s_star      ')'        : {function,'$1',[]}.
-function -> function_s_star      ')' s_plus : {function,'$1',[]}.
-function -> function_s_star expr ')'        : {function,'$1','$2'}.
-function -> function_s_star expr ')' s_plus : {function,'$1','$2'}.
+function -> function_s_star      cparen_s_star : {function,'$1',[]}.
+function -> function_s_star expr cparen_s_star : {function,'$1','$2'}.
 
 function_s_star -> FUNCTION        : css_leex:function_name('$1').
 function_s_star -> FUNCTION s_plus : css_leex:function_name('$1').
+
+%% (11)
+function2 -> function2_s_star         cparen_s_star : {function,'$1',[]}.
+function2 -> function2_s_star expr    cparen_s_star : {function,'$1','$2'}.
+function2 -> function2_s_star kv_list cparen_s_star : {function,'$1',css_leex:flatten_expr('$2')}.
+
+function2_s_star -> ident ':' function2_s_star : {ident,{':','$1','$3'}}.
+function2_s_star -> ident '.' function2_s_star : {ident,{'.','$1','$3'}}.
+function2_s_star -> FUNCTION        : css_leex:function_name('$1').
+function2_s_star -> FUNCTION s_plus : css_leex:function_name('$1').
+
+kv_list -> expr2 equals_s_star expr2                      : {'=','$1','$3'}.
+kv_list -> expr2 equals_s_star expr2 comma_s_star kv_list : {',',{'=','$1','$3'},'$5'}.
+
+equals_s_star -> '='        : '='.
+equals_s_star -> '=' s_plus : '='.
 
 hexcolor -> HASH        : css_leex:hash_to_hexcolor('$1').
 hexcolor -> HASH s_plus : css_leex:hash_to_hexcolor('$1').

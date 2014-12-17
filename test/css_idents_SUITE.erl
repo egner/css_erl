@@ -40,13 +40,6 @@ groups() ->
 
 %% -- tests --
 
-list_files(Config) ->
-    DataDir = ?config(data_dir, Config),
-    ExpectedFiles = ["somedefs2.css"],
-    Expected = [filename:join(DataDir, F) || F <- ExpectedFiles],
-    Expected = css_idents:list_files([filename:join(DataDir, "*.css")]),
-    ok.
-
 css_idents(_Config) ->
     C = fun css_idents:css_idents/1,
     [] = C(""),

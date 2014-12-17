@@ -90,11 +90,11 @@ to_codepoints(<<Cp/utf8,More/binary>>, Acc) ->
 to_codepoints(<<>>, Acc) ->
     lists:reverse(Acc).
 
-%% Strip space and tab from both ends.
+%% Strip "\t\n\f\r " from both ends.
 strip2(String) ->
     lists:reverse(strip1(lists:reverse(strip1(String)))).
 
-strip1([H|T]) when H =:= 9; H =:= 32 -> strip1(T);
+strip1([H|T]) when H =:= 9; H =:= 10; H =:= 12; H =:= 13; H =:= 32 -> strip1(T);
 strip1(String) -> String.
 
 %% -- utils --

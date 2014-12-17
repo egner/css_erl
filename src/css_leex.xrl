@@ -18,15 +18,26 @@
 %% - We implement a few extensions for CSS 3, marked by (1).
 %% - We need to represent /* validator: PRAGMA */ comments.
 %%
-%% Extensions:
+%% Extensions / Relaxations / Accepting broken CSS:
 %% (1) Some CSS 3 extensions.
 %% (2) '//' style comments.
 %% (3) '~' as operator, like '+' but with elements in between
 %% (4) Broken declarations like "padding: 8px; 7px 8px; 3px;".
 %% (5) Extended pseudos like "audio:not([controls]) { }".
 %% (6) Invalid '<style type "text/css">' and '</style>' tags.
-%% (7) The "::before" selector.
-%% (8) CSS 3 media queries. // NOTYET
+%% (7) The "::before" selector. CSS3 uses '::' for pseudos.
+%% (8) CSS 3 media queries.
+%% (9) Other matching operators ~=, ^=, $=, *=
+%% (10) Some @-defs need a ruleset others a declaration-list.
+%% (11) Composed function names in declarations.
+%% (12) Selector inside expr.
+%% (13) ' ' as an operator in expr.
+%% (14) Invalid '*..' as property name (IE9).
+%% (15) Invalid '#.x' as selector.
+%% (16) @-definitions.
+%% (17) Broken "body {background= #a0f0a0}".
+%% (18) "<?lua .. ?>" extension.
+%% (19) Broken "x, {a: b;}"
 %%
 %% References:
 %% [1] http://www.w3.org/TR/CSS21/grammar.html
@@ -96,7 +107,7 @@ X               = (x|X|\\{Zero0to4}(58|78)(\r\n|[\s\t\r\n\f])?|\\(x|X))
 Y               = (y|Y|\\{Zero0to4}(59|79)(\r\n|[\s\t\r\n\f])?|\\(y|Y))
 Z               = (z|Z|\\{Zero0to4}(5a|7a)(\r\n|[\s\t\r\n\f])?|\\(z|Z))
 
-CharToken       = ([\)\*\+\,\-\.\/\:\;\=\>\[\]\{\}\~])
+CharToken       = ([\(\)\*\+\,\-\.\/\:\;\=\>\[\]\{\}\~\#])
 BadChar         = ([^\)\*\+\,\-\.\/\:\;\=\>\[\]\{\}])
 
 %% pacifying Dialyzer on leexinc.hrl
@@ -125,9 +136,17 @@ Rules.
 -->                       : {token,{'CDC',TokenLine}}.
 ~=                        : {token,{'INCLUDES',TokenLine}}.
 \|=                       : {token,{'DASHMATCH',TokenLine}}.
+\^=                       : {token,{'CARETMATCH',TokenLine}}.  % (9)
+\~=                       : {token,{'TILDEMATCH',TokenLine}}.  % (9)
+\$=                       : {token,{'DOLLARMATCH',TokenLine}}. % (9)
+\*=                       : {token,{'STARMATCH',TokenLine}}.   % (9)
 
 {String}                  : {token,{'STRING',TokenLine,string_to_unicode(TokenChars)}}.
 {Badstring}               : {token,{'BAD_STRING',TokenLine,TokenChars}}.
+
+{O}{N}{L}{Y}              : {token,{'ONLY',TokenLine}}. % (8)
+{N}{O}{T}                 : {token,{'NOT',TokenLine}}.  % (8)
+{A}{N}{D}                 : {token,{'AND',TokenLine}}.  % (8)
 
 {Ident}                   : {token,{'IDENT',TokenLine,ident_to_unicode(TokenChars)}}.
 
@@ -137,11 +156,9 @@ Rules.
 @{P}{A}{G}{E}             : {token,{'PAGE_SYM',TokenLine}}.
 @{M}{E}{D}{I}{A}          : {token,{'MEDIA_SYM',TokenLine}}.
 @charset\s                : {token,{'CHARSET_SYM',TokenLine}}.
+@font-face                : {token,{'AT_SYM2',TokenLine,ident_to_unicode(TokenChars)}}. % (10)
+@-ms-viewport             : {token,{'AT_SYM2',TokenLine,ident_to_unicode(TokenChars)}}. % (10)
 @{Ident}                  : {token,{'AT_SYM',TokenLine,ident_to_unicode(TokenChars)}}.
-
-{O}{N}{L}{Y}              : {token,{'ONLY',TokenLine}}. % (8)
-{N}{O}{T}                 : {token,{'NOT',TokenLine}}.  % (8)
-{A}{N}{D}                 : {token,{'AND',TokenLine}}.  % (8)
 
 !({Wx}|{Comment})*{I}{M}{P}{O}{R}{T}{A}{N}{T} : {token,{'IMPORTANT_SYM',TokenLine}}.
 
@@ -172,6 +189,9 @@ url\({Wx}{Url}{Wx}\)      : {token,{'URI',TokenLine,{url,url_to_unicode2(TokenCh
 
 {Ident}\(                 : {token,{'FUNCTION',TokenLine,ident_to_unicode(TokenChars)}}.
 
+<\?lua\s[^\?]*\?>         : {token,{'LUA',TokenLine,lua_to_unicode(TokenChars)}}. % (18)
+
+\:\:                      : {token,{'PSEUDO',TokenLine}}. % (7)
 {CharToken}               : {token,{list_to_atom(TokenChars),TokenLine}}.
 
 {BadChar}                 : {token,{'BAD_CHAR',TokenLine,TokenChars}}.
@@ -224,7 +244,8 @@ Erlang code.
          selector/1,
          flatten_expr/1,
          apply_unary_operator/2,
-         remove_comments/1]).
+         remove_comments/1,
+         fix_attr/1]).
 
 %% We work with strings as lists of Unicode codepoints.
 
@@ -265,6 +286,11 @@ string_to_unicode(TokenChars) ->
     [Quote|RevContent] = lists:reverse(ContentQuote),
     lists:reverse(RevContent).
 
+lua_to_unicode(TokenChars) ->
+    "<?lua"++ Content1 = to_unicode(TokenChars),
+    ">?" ++ RevContent2 = lists:reverse(Content1),
+    css_util:strip2(lists:reverse(RevContent2)).
+
 ident_to_unicode(TokenChars) ->
     string:to_lower(to_unicode(TokenChars)).
 
@@ -292,10 +318,13 @@ unescape("\\n" ++ T, Acc) -> unescape(T, ["\n"|Acc]);
 unescape("\\f" ++ T, Acc) -> unescape(T, ["\f"|Acc]);
 unescape("\\r" ++ T, Acc) -> unescape(T, ["\r"|Acc]);
 unescape("\\" ++ Escape, Acc) ->
-    UnicodeRe = "^([0-9a-fA-F]{1,6})(?:\r\n|[\s\t\r\n\f])?",
-    case re:split(Escape, UnicodeRe, [{return,list}]) of
-        [[],Hex,T] -> unescape(T, [[list_to_integer(Hex, 16)]|Acc]);
-        [_] -> unescape(Escape, Acc)
+    UnicodeRe = "^[0-9a-fA-F]{1,6}(\r\n|[\s\t\r\n\f])?",
+    case re:run(Escape, UnicodeRe, [{capture,first,list}]) of
+        {match,[Hex]} ->
+            unescape(lists:nthtail(length(Hex), Escape),
+                     [[list_to_integer(css_util:strip2(Hex), 16)]|Acc]);
+        nomatch -> % skip the backslash
+            unescape(Escape, Acc)
     end;
 %% any other codepoint
 unescape([H|T], Acc) -> unescape(T, [[H]|Acc]);
@@ -309,7 +338,7 @@ value({_TokenName,_Line,Value}) ->
 ident_to_atom({'IDENT',Line,Codepoints}) ->
     codepoints_to_atom(Line, Codepoints).
 
-ident_to_at_sym({'AT_SYM',Line,"@"++Codepoints}) ->
+ident_to_at_sym({_,Line,"@"++Codepoints}) ->
     ident_to_atom({'IDENT',Line,Codepoints}).
 
 hash_to_hexcolor({'HASH',Line,Hex}) ->
@@ -368,3 +397,9 @@ remove_comments([_Item|Items], Acc, N) when N > 0 ->
     remove_comments(Items, Acc, N);
 remove_comments([], Acc, _) ->
     lists:reverse(Acc).
+
+fix_attr({attr,Ident,Rel,{ident,String}})
+  when Rel =:= '^='; Rel =:= '$='; Rel =:= '*=' ->
+    {attr,Ident,Rel,{string,String}};
+fix_attr(Attr={attr,_Ident,_Rel,_Rhs}) ->
+    Attr.

@@ -76,50 +76,104 @@ check_readback(Css, Outfile) -> % ok|{error,_,_}
                 ok -> ok;
                 {error,Reason,Details} ->
                     {error,css_readback_failed,
-                     [{outfile,Outfile},{css,Css},{reason,Reason}|Details]}
+                     [{outfile,Outfile},{reason,Reason}|Details]}
             end;
         {error,Reason,Details} ->
             {error,css_readback_failed,
-             [{outfile,Outfile},{css,Css},{reason,Reason}|Details]}
+             [{outfile,Outfile},{reason,Reason}|Details]}
     end.
 
 wr_entries(Entries) when is_list(Entries) ->
     join_map(fun wr_entry/1, Entries, "\n\n").
 
 wr_entry({'@charset',Charset}) ->
-    fmt("@charset ~ts;", [wr_string(Charset)]);
+    ["@charset ", wr_string(Charset), ";"];
 wr_entry({'@import',StringOrUri,[]}) ->
-    fmt("@import ~ts;", [wr_string_or_uri(StringOrUri)]);
-wr_entry({'@import',StringOrUri,MediaList=[_|_]}) ->
-    fmt("@import ~ts ~ts;", [wr_string_or_uri(StringOrUri), wr_media_list(MediaList)]);
-wr_entry({'@media',MediaList,RulesetList}) ->
-    fmt("@media ~ts {~n~ts~n}", [wr_media_list(MediaList), wr_ruleset_list(RulesetList)]);
-wr_entry({'@',Keyword,Ruleset}) ->
-    fmt("@~ts ~ts", [wr_ident(Keyword), wr_ruleset(Ruleset)]);
-wr_entry({'@',Keyword,{function,Name,Expr},RulesetList}) ->
-    fmt("@~ts ~ts ~ts", [wr_ident(Keyword),
-                         wr_function(Name, Expr),
-                         wr_ruleset_list(RulesetList)]);
-wr_entry({'@',Keyword,{function,Name,Expr},{'/*validator:*/',Pragma},RulesetList}) ->
-    fmt("@~ts ~ts ~ts~n{~n~ts~n}", % NOTYET: pretty-print
-        [wr_ident(Keyword),
-         wr_function(Name, Expr),
-         wr_validator(Pragma),
-         wr_ruleset_list(RulesetList)]);
+    ["@import ", wr_string_or_uri(StringOrUri), ";"];
+wr_entry({'@import',StringOrUri,MediaQueryList=[_|_]}) ->
+    ["@import ",
+     wr_string_or_uri(StringOrUri), " ",
+     wr_media_query_list(MediaQueryList), ";"];
+wr_entry({'@media',MediaQueryList,RulesetList}) ->
+    ["@media ",
+     wr_media_query_list(MediaQueryList), " {", wr_nl(1),
+     wr_ruleset_list(RulesetList, 1), wr_nl(0),
+     "}"];
+wr_entry({'@R',Keyword,Ruleset}) ->
+    ["@", wr_ident(Keyword), " ",
+     wr_ruleset(Ruleset, 1)];
+wr_entry({'@R',Keyword,{function,Name,Expr},RulesetList}) ->
+    ["@", wr_ident(Keyword), " ",
+     wr_function(Name, Expr), " ",
+     wr_ruleset_list(RulesetList, 1)];
+wr_entry({'@R',Keyword,{function,Name,Expr},{'/*validator:*/',Pragma},RulesetList}) ->
+    ["@", wr_ident(Keyword), " ",
+     wr_function(Name, Expr), " ",
+     wr_validator(Pragma), wr_nl(0),
+     "{", wr_nl(1),
+     wr_ruleset_list(RulesetList, 1), wr_nl(0),
+     "}"];
+wr_entry({'@D',Keyword,DeclarationList}) ->
+    ["@", wr_ident(Keyword), " {", wr_nl(1),
+     wr_declaration_list(DeclarationList, 1), wr_nl(0),
+     "}"];
+wr_entry({'@D',Keyword,{function,Name,Expr},DeclarationList}) ->
+    ["@", wr_ident(Keyword), " ",
+     wr_function(Name, Expr), " {", wr_nl(1),
+     wr_declaration_list(DeclarationList, 1), wr_nl(0),
+     "}"];
+wr_entry({'@D',Keyword,{function,Name,Expr},{'/*validator:*/',Pragma},DeclarationList}) ->
+    ["@", wr_ident(Keyword), " ",
+     wr_function(Name, Expr), " ",
+     wr_validator(Pragma), wr_nl(0),
+     "{", wr_nl(1),
+     wr_declaration_list(DeclarationList, 1), wr_nl(0),
+     "}"];
+wr_entry({'@:',Keyword,Expr}) ->
+    ["@", wr_ident(Keyword), ": ", wr_expr(Expr), ";"];
 wr_entry(Ruleset={ruleset,_,_}) ->
-    wr_ruleset(Ruleset).
+    wr_ruleset(Ruleset, 0).
 
-wr_media_list(MediaList) ->
-    join_map(fun wr_ident/1, MediaList, ", ").
+%wr_media_list(MediaList) ->
+%    join_map(fun wr_ident/1, MediaList, ", ").
 
-wr_ruleset_list(RulesetList) ->
-    join_map(fun wr_ruleset/1, RulesetList, "\n").
+wr_media_query_list(MediaQueryList) ->
+    join_map(fun wr_media_query/1, MediaQueryList, ", ").
 
-wr_ruleset({ruleset,SelectorList,[]}) ->
-    fmt("~ts { }", [wr_selector_list(SelectorList)]);
-wr_ruleset({ruleset,SelectorList,DeclarationList=[_|_]}) ->
-    fmt("~ts {\n    ~ts\n}", [wr_selector_list(SelectorList),
-                              wr_declaration_list(DeclarationList)]).
+wr_media_query({media_query,MediaType,Expressions}) ->
+    join([wr_media_type(MediaType),
+          join_map(fun wr_expression/1, Expressions, " and ")],
+         " and ").
+
+wr_media_type(any) ->
+    "";
+wr_media_type({'only',Ident}) ->
+    ["only ", wr_ident(Ident)];
+wr_media_type({'not',Ident}) ->
+    ["not ", wr_ident(Ident)];
+wr_media_type(Ident) ->
+    wr_ident(Ident).
+
+wr_expression({':',MediaFeature,Expr}) ->
+    ["(", wr_media_feature(MediaFeature),": ",wr_expr(Expr), ")"];
+wr_expression(Expr) ->
+    ["(", wr_expr(Expr), ")"].
+
+wr_media_feature(MediaFeature) ->
+    wr_ident(MediaFeature).
+
+wr_ruleset_list(RulesetList, Indent) ->
+    join_map(fun (R) -> wr_ruleset(R, Indent) end,
+             RulesetList,
+             wr_nl(0) ++ wr_nl(Indent)).
+
+wr_ruleset({ruleset,SelectorList,[]}, _Indent) ->
+    [wr_selector_list(SelectorList), " { }"];
+wr_ruleset({ruleset,SelectorList,DeclarationList=[_|_]}, Indent) ->
+    [wr_selector_list(SelectorList),
+     " {", wr_nl(Indent + 1),
+     wr_declaration_list(DeclarationList, Indent + 1),
+     wr_nl(Indent), "}"].
 
 wr_selector_list(SelectorList) ->
     case lists:reverse(SelectorList) of
@@ -133,10 +187,10 @@ wr_selector_list(SelectorList) ->
 wr_selector({selector,[{' ',SS}|SSs]}) ->
     join([wr_simple_selector(SS)] ++
              lists:map(fun ({' ',SS1}) ->
-                               fmt(" ~ts", [wr_simple_selector(SS1)]);
+                               [" ", wr_simple_selector(SS1)];
                            ({Combinator,SS1}) ->
-                               fmt("~ts ~ts", [wr_atom(Combinator),
-                                               wr_simple_selector(SS1)])
+                               [wr_atom(Combinator), " ",
+                                wr_simple_selector(SS1)]
                        end,
                        SSs),
          " ").
@@ -153,47 +207,57 @@ wr_simple_selector1s(SimpleSelector1s) ->
     join_map(fun wr_simple_selector1/1, SimpleSelector1s, "").
 
 wr_simple_selector1({class,Ident}) ->
-    fmt(".~ts", [wr_ident(Ident)]);
+    [".", wr_ident(Ident)];
 wr_simple_selector1({id,Ident}) ->
-    fmt("#~ts", [wr_ident(Ident)]);
+    ["#", wr_ident(Ident)];
 wr_simple_selector1({attr,Ident}) ->
-    fmt("[~ts]", [wr_ident(Ident)]);
+    ["[", wr_ident(Ident), "]"];
 wr_simple_selector1({attr,Ident,Rel,{string,String}}) ->
-    fmt("[~ts~ts~ts]", [wr_ident(Ident), wr_atom(Rel), wr_string(String)]);
-wr_simple_selector1({attr,Ident,Rel,Rhs}) ->
-    fmt("[~ts~ts~ts]", [wr_ident(Ident), wr_atom(Rel), wr_ident(Rhs)]);
+    ["[", wr_ident(Ident), wr_atom(Rel), wr_string(String), "]"];
+wr_simple_selector1({attr,Ident,Rel,{ident,Rhs}}) ->
+    ["[", wr_ident(Ident), wr_atom(Rel), wr_ident(Rhs), "]"];
 wr_simple_selector1({':',{ident,Ident}}) ->
-    fmt(":~ts", [wr_ident(Ident)]);
+    [":", wr_ident(Ident)];
+wr_simple_selector1({'::',{ident,Ident}}) ->
+    ["::", wr_ident(Ident)];
 wr_simple_selector1({':',{function,Name,Expr}}) ->
-    fmt(":~ts", [wr_function(Name, Expr)]).
+    [":", wr_function(Name, Expr)];
+wr_simple_selector1({'::',{function,Name,Expr}}) ->
+    ["::", wr_function(Name, Expr)];
+wr_simple_selector1({'#',Class}) ->
+    ["#", wr_simple_selector1(Class)].
 
-wr_declaration_list(DeclarationList) ->
-    join(wr_declaration_list1(DeclarationList), "\n    ").
+wr_declaration_list(DeclarationList, Indent) ->
+    join(wr_declaration_list1(DeclarationList), wr_nl(Indent)).
 
 wr_declaration_list1([D,{'/*validator:*/',Pragma}|Ds]) ->
-    S = fmt("~ts~ts", [wr_declaration(D), wr_validator(Pragma)]),
-    [S|wr_declaration_list1(Ds)];
+    [[wr_declaration(D), wr_validator(Pragma)]|wr_declaration_list1(Ds)];
 wr_declaration_list1([D|Ds]) ->
     [wr_declaration(D)|wr_declaration_list1(Ds)];
 wr_declaration_list1([]) ->
     [].
 
 wr_declaration({':',Property,Expr}) ->
-    fmt("~ts: ~ts;", [wr_ident(Property), wr_expr(Expr)]);
+    [wr_property(Property), ": ", wr_expr(Expr), ";"];
 wr_declaration({':!important',Property,Expr}) ->
-    fmt("~ts: ~ts !important;", [wr_ident(Property), wr_expr(Expr)]);
+    [wr_property(Property), ": ", wr_expr(Expr), " !important;"];
 wr_declaration({'{}',Term={Num,Unit},DeclarationList})
   when is_number(Num), is_atom(Unit) ->
-    fmt("~ts { ~ts }", [wr_term(Term),
-                        join_map(fun wr_declaration/1,
-                                 DeclarationList, " ")]);
+    [wr_term(Term), " { ",
+     join_map(fun wr_declaration/1,
+              DeclarationList, " "), " }"];
 wr_declaration({'{}',Property,DeclarationList}) ->
-    fmt("~ts { ~ts }", [wr_ident(Property),
-                        join_map(fun wr_declaration/1,
-                                 DeclarationList, " ")]).
+    [wr_ident(Property), " { ",
+     join_map(fun wr_declaration/1,
+              DeclarationList, " "), " }"].
+
+wr_property({'*',Ident}) ->
+    ["*",wr_ident(Ident)];
+wr_property(Ident) ->
+    wr_ident(Ident).
 
 wr_validator(Pragma) ->
-    fmt(" /* validator: ~ts */", [Pragma]).
+    [" /* validator: ", Pragma, " */"].
 
 wr_expr({Op,Args}) when Op =:= ','; Op =:= ' '; Op =:= '/' ->
     join_map(fun wr_expr/1, Args, wr_atom(Op));
@@ -201,7 +265,7 @@ wr_expr(Term) ->
     wr_term(Term).
 
 wr_term({Num,Unit}) when is_number(Num), is_atom(Unit) ->
-    fmt("~ts~ts", [number_to_string(Num), wr_atom(Unit)]);
+    [number_to_string(Num), wr_atom(Unit)];
 wr_term(Num) when is_number(Num) ->
     number_to_string(Num);
 wr_term({ident,Ident}) ->
@@ -211,14 +275,24 @@ wr_term({string,String}) ->
 wr_term({uri,Uri}) ->
     wr_uri(Uri);
 wr_term({hexcolor,Hexcolor}) ->
-    fmt("#~ts", [wr_escaped(Hexcolor)]);
+    ["#", wr_escaped(Hexcolor)];
 wr_term({function,Name,Args}) ->
-    wr_function(Name, Args).
+    wr_function(Name, Args);
+wr_term({':',Ident}) ->
+    [":", wr_ident(Ident)];
+wr_term({'.',Ident}) ->
+    [".", wr_ident(Ident)];
+wr_term({'@',AtSym}) ->
+    ["@", wr_ident(AtSym)];
+wr_term({'=',Lhs,Rhs}) ->
+    [wr_expr(Lhs), "=", wr_expr(Rhs)];
+wr_term({lua,String}) ->
+    ["<?lua ", wr_escaped(String), " ?>"].
 
 wr_function(Name, []) ->
-    fmt("~ts()", [wr_ident(Name)]);
+    [wr_ident(Name), "()"];
 wr_function(Name, Expr) ->
-    fmt("~ts(~ts)", [wr_ident(Name), wr_expr(Expr)]).
+    [wr_ident(Name), "(", wr_expr(Expr), ")"].
 
 wr_atom(Atom) ->
     atom_to_binary(Atom, utf8).
@@ -229,39 +303,36 @@ wr_string_or_uri({uri,Uri}) ->
     wr_uri(Uri).
 
 wr_uri({string,String}) ->
-    fmt("url(~ts)", [wr_string(String)]);
+    ["url(", wr_string(String), ")"];
 wr_uri({url,Url}) ->
-    fmt("url(~ts)", [wr_escaped(Url)]).
+    ["url(", wr_escaped(Url), ")"].
 
 wr_string(String) ->
-    fmt("\"~ts\"", [wr_escaped(String)]).
+    ["\"", wr_escaped(String), "\""].
 
+wr_ident({':',Namespace,Ident}) ->
+    [wr_escaped(Namespace), ":", wr_ident(Ident)];
+wr_ident({'.',Ident1,Ident2}) ->
+    [wr_ident(Ident1), ".", wr_ident(Ident2)];
+wr_ident({ident,Ident}) ->
+    wr_ident(Ident);
 wr_ident(Ident) ->
     wr_escaped(Ident).
 
 wr_escaped(Str) ->
-    wr_esc(css_util:to_codepoints(Str), <<>>).
+    lists:map(fun wr_esc/1, css_util:to_codepoints(Str)).
 
-wr_esc([ 9|T], Acc) ->  wr_esc(T, <<Acc/binary,"\\t">>);
-wr_esc([10|T], Acc) ->  wr_esc(T, <<Acc/binary,"\\n">>);
-wr_esc([12|T], Acc) ->  wr_esc(T, <<Acc/binary,"\\f">>);
-wr_esc([13|T], Acc) ->  wr_esc(T, <<Acc/binary,"\\r">>);
-wr_esc([34|T], Acc) ->  wr_esc(T, <<Acc/binary,"\\\"">>);
-wr_esc([92|T], Acc) ->  wr_esc(T, <<Acc/binary,"\\\\">>);
-wr_esc([H|T], Acc) when 32 =< H, H =< 126 ->
-    case 32 =< H andalso H =< 126 of
-        true  -> wr_esc(T, <<Acc/binary,H>>);
-        false -> wr_esc(T, <<Acc/binary,(wr_hex(H, T))/binary>>)
-    end;
-wr_esc([], Acc) ->
-    Acc.
+wr_esc( 9) -> "\\t";
+wr_esc(10) -> "\\n";
+wr_esc(12) -> "\\f";
+wr_esc(13) -> "\\r";
+wr_esc(34) -> "\\\"";
+wr_esc(92) -> "\\\\";
+wr_esc(C) when 32 =< C, C =< 126 -> C;
+wr_esc(C) -> io_lib:format("\\~.16B ", [C]).
 
-wr_hex(N, Tail) ->
-    NStr = string:to_lower(integer_to_list(N, 16)),
-    case re:run(Tail, "^[0-9A-Fa-f]", [{capture,none}]) of
-        match   -> ["\\", NStr, " "];
-        nomatch -> ["\\", NStr]
-    end.
+wr_nl(Indent) ->
+    "\n" ++ [32 || _ <- lists:seq(1, 4*Indent)].
 
 join_map(Fun, List, Sep) ->
     join(lists:map(Fun, List), Sep).
@@ -285,9 +356,6 @@ number_to_string(X) when is_float(X) ->
     end.
 
 %% Abbreviations.
-
-fmt(Format, Args) ->
-    io_lib:format(Format, Args).
 
 join(Args, Separator) ->
     css_util:join(Args, Separator).
