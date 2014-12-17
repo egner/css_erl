@@ -101,7 +101,7 @@ wr_entry({'@media',MediaQueryList,RulesetList}) ->
      "}"];
 wr_entry({'@R',Keyword,Ruleset}) ->
     ["@", wr_ident(Keyword), " ",
-     wr_ruleset(Ruleset, 1)];
+     wr_ruleset(Ruleset, 0)];
 wr_entry({'@R',Keyword,{function,Name,Expr},RulesetList}) ->
     ["@", wr_ident(Keyword), " ",
      wr_function(Name, Expr), " ",
