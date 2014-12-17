@@ -36,7 +36,7 @@ report_css_idents(InfileWildcards, IncludeDirWildcards) ->
                              not sets:is_element(Ident, Source)
                      end,
                      CssIdents),
-    log("; ~b CSS identifiers unreferenced from source~n",
+    log("; ~b CSS identifier(s) unreferenced from source~n",
         [length(UnreferencedCss)]),
     case UnreferencedCss =:= [] of
         true  -> ok;
