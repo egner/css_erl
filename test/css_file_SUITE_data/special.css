@@ -17,16 +17,122 @@ p {
 
 /* Unexpected brackets. */
 audio:not([controls]) {
-  display: none;
-  height: 0;
+    display: none;
+    height: 0;
 }
 
 /* The "::before" selector. */
 :target::before {
-  content:" >>> ";
+    content:" >>> ";
 }
 
 /* The '~' operator. */
 li p~ul:last-child, li p~ol:last-child {
-  margin-bottom:0.5em;
+    margin-bottom:0.5em;
+}
+
+/* The extension 'and' for media queries. */
+@media screen and (min-width: 60em) {
+    body { margin: auto; }
+}
+
+/* Another media-query-list. */
+@media (min-width: 768px) {
+    .lead {
+	font-size: 21px;
+    }
+}
+
+/* Several rulesets. */
+@media screen {
+    body { margin: auto; }
+    a { width: 100px; }
+}
+
+/* Pseudos */
+svg:not(:root) {
+    overflow: hidden;
+}
+
+/* Other matching operators */
+a[href^="javascript:"]:after,
+a[href^="#"]:after {
+    content: "";
+}
+a[href^=\#], .navigation {
+    display:none;
+}
+
+/* Named arguments in function. */
+fieldset[disabled] {
+    filter: alpha(opacity=65);
+}
+
+/* The '@font-face' construct. */
+@font-face {
+    font-family: 'Myfont';
+    src: url('../fonts/myfont');
+}
+
+/* Extension for function names. */
+sometag {
+    filter: progid:DXImageTransform.Microsoft.gradient(enabled = false);
+}
+
+/* '.dropdown-toggle' is an extension */
+.btn-group > .btn:not(:first-child):not(:last-child):not(.dropdown-toggle) {
+    border-radius: 0;
+}
+
+/* Some @-definitions have ruleset others a declaration-list. */
+@-webkit-keyframes progress-bar-stripes {
+    from { background-position: 100px 0; }
+    to { background-position: 0 0; }
+}
+
+@-ms-viewport {
+    width: device-width;
+}
+
+/* ' ' as an operator in expressions like "to bottom". */
+#outer-space {
+    background-image: -webkit-linear-gradient(top, #ffffff,#f2f2f2);
+    background-image: -moz-linear-gradient(to bottom, #ffffff,#f2f2f2);
+    background-image: linear-gradient(to bottom, #ffffff,#f2f2f2);
+}
+
+/* Invalid '*zoom'. */
+#wrapper {
+    z-index:1;
+    *zoom:1;
+}
+
+/* Invalid '#.main'. */
+#.main {
+    width: 98%;
+}
+
+/* @-definitions. */
+@screen-xsmall:    480px;
+@screen-phone:     @screen-xsmall;
+@screen-small-max: (@screen-medium - 1);
+
+/* '<?lua ..?>' extension. */
+body {
+    background-color: <?lua pv('color-background-body')?> ;
+}
+
+/* Broken ', {' */
+.likesubsectionToc ~ .subsubsectionToc, .subsectionToc ~ .subsubsectionToc, {
+    margin-left:2em;
+}
+
+/* Pseudos in CSS3 style */
+.source cite::before {
+    width: 100px;
+}
+
+/* Unicode characters in the input. */
+.my-tag {
+    content:"— "; /* [226,128,148,32] */
 }
