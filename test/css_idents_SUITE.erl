@@ -107,5 +107,3 @@ check_idents(Idents, Expected) ->
     css_util:check_diff(
       [I || {ident,I,_} <- Idents],
       lists:usort([css_util:to_utf8(I) || I <- Expected])).
-
-
